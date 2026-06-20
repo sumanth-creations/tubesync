@@ -65,8 +65,7 @@ export default function LoginPage() {
         await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
-            redirectTo:
-              'https://ba05c406.tubesync.pages.dev/auth/callback',
+            redirectTo: 'https://tubesync.pages.dev/auth/callback',
           },
         });
 
