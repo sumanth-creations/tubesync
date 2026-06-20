@@ -27,6 +27,21 @@ export interface RenderProgress {
 const CANVAS_WIDTH = 1280;
 const CANVAS_HEIGHT = 720;
 
+// Trims a script to roughly fit a target spoken duration, assuming an
+// average speaking rate of ~150 words/minute (2.5 words/sec) for the
+// browser TTS voice at the rate we use (0.95x).
+export function trimScriptToDuration(script: string, targetSeconds = 45): string {
+  const wordsPerSecond = 2.3; // conservative estimate including slide pauses
+  const maxWords = Math.round(targetSeconds * wordsPerSecond);
+  const words = script.replace(/\s+/g, ' ').trim().split(' ');
+  if (words.length <= maxWords) return script;
+
+  // Trim at the last full sentence boundary within the word budget
+  const trimmed = words.slice(0, maxWords).join(' ');
+  const lastSentenceEnd = Math.max(trimmed.lastIndexOf('.'), trimmed.lastIndexOf('!'), trimmed.lastIndexOf('?'));
+  return lastSentenceEnd > trimmed.length * 0.5 ? trimmed.slice(0, lastSentenceEnd + 1) : trimmed + '.';
+}
+
 // Splits a script into readable slide-sized chunks (roughly one sentence
 // or short group of sentences per slide).
 export function scriptToSlides(script: string, maxCharsPerSlide = 140): Slide[] {

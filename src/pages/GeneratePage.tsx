@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { Sparkles, ArrowRight, ArrowLeft, Check, Loader as Loader2, Type, Hash, Calendar, Clock, Eye, Upload, Wand as Wand2, FileVideo, X } from 'lucide-react';
 import { createVideo, queueForUpload, generateAIContent, generateAIContentReal, updateVideo, logActivity, uploadVideoFile, pushVideoToYouTube, getYouTubeChannels } from '../lib/api';
 import { supabase } from '../lib/supabase';
-import { scriptToSlides, renderSlideshowVideo, type RenderProgress } from '../lib/videoRenderer';
+import { scriptToSlides, trimScriptToDuration, renderSlideshowVideo, type RenderProgress } from '../lib/videoRenderer';
 import type { Video, AIContent, YouTubeChannel } from '../types';
 
 type Step = 'details' | 'content' | 'preview' | 'upload';
@@ -47,6 +47,9 @@ export default function GeneratePage() {
   const [resultUrl, setResultUrl] = useState('');
   const [autoRendering, setAutoRendering] = useState(false);
   const [renderProgress, setRenderProgress] = useState<RenderProgress | null>(null);
+  const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState(false);
 
   useEffect(() => {
     getYouTubeChannels()
@@ -205,14 +208,17 @@ export default function GeneratePage() {
       return;
     }
 
-    const scriptText = aiContent?.scripts?.[0] || selectedDescription || selectedTitle;
-    if (!scriptText) {
+    const rawScript = aiContent?.scripts?.[0] || selectedDescription || selectedTitle;
+    if (!rawScript) {
       toast.error('No script available to narrate. Go back and generate AI content first.');
       return;
     }
+    const scriptText = trimScriptToDuration(rawScript, 45);
 
     setAutoRendering(true);
     setRenderProgress(null);
+    setPreviewBlob(null);
+    setPreviewUrl(null);
     try {
       const slides = scriptToSlides(scriptText);
       toast('A browser prompt may appear asking to share this tab\'s audio — allow it for voiceover, or skip for a silent slideshow.', { duration: 6000 });
@@ -223,8 +229,23 @@ export default function GeneratePage() {
         toast('Created without voiceover audio (silent slideshow). You can still publish it.', { duration: 5000 });
       }
 
+      setPreviewBlob(blob);
+      setPreviewUrl(URL.createObjectURL(blob));
+      toast.success('Video ready! Preview it below before publishing.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Video creation failed');
+    } finally {
+      setAutoRendering(false);
+      setRenderProgress(null);
+    }
+  };
+
+  const handleConfirmPublish = async () => {
+    if (!createdVideo || !previewBlob || !selectedChannelId) return;
+    setPublishing(true);
+    try {
       setFileUploadStage('uploading');
-      await uploadVideoFile(createdVideo.id, blob, undefined, `${createdVideo.id}.webm`);
+      await uploadVideoFile(createdVideo.id, previewBlob, undefined, `${createdVideo.id}.webm`);
       setFileUploadStage('done');
 
       setPushStage('pushing');
@@ -238,7 +259,7 @@ export default function GeneratePage() {
       if (data?.status === 'uploaded' && data.youtube_video_url) {
         setResultUrl(data.youtube_video_url);
         setPushStage('done');
-        toast.success('Video created and uploaded to YouTube!');
+        toast.success('Video uploaded to YouTube!');
       } else if (data?.status === 'failed') {
         setPushStage('failed');
         toast.error(data.error_message || 'Upload to YouTube failed');
@@ -248,12 +269,17 @@ export default function GeneratePage() {
       }
       setUploadComplete(true);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Auto-create failed');
+      toast.error(error instanceof Error ? error.message : 'Publish failed');
       setPushStage('failed');
     } finally {
-      setAutoRendering(false);
-      setRenderProgress(null);
+      setPublishing(false);
     }
+  };
+
+  const handleDiscardPreview = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewBlob(null);
+    setPreviewUrl(null);
   };
 
   const handleQueueOnly = async () => {
@@ -560,15 +586,16 @@ export default function GeneratePage() {
                   <p className="text-slate-500 text-sm">Attach the video file and publish it to YouTube</p>
                 </div>
 
-                {/* One-click auto-create: AI script -> voiceover slideshow -> upload */}
+                {/* One-click auto-create: AI script -> voiceover slideshow -> preview -> publish */}
                 <div className="p-4 rounded-xl border-2 border-red-200 bg-red-50">
                   <div className="flex items-center gap-2 mb-2">
                     <Wand2 className="w-5 h-5 text-red-600" />
                     <h3 className="font-semibold text-slate-800">Auto-Create Video (Free)</h3>
                   </div>
                   <p className="text-sm text-slate-600 mb-3">
-                    Generates a narrated slideshow video from your script automatically and publishes it — no file needed.
+                    Generates a ~45 second narrated slideshow video from your script. You'll preview it here before it goes to YouTube.
                   </p>
+
                   {autoRendering ? (
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 text-sm text-slate-600">
@@ -588,13 +615,38 @@ export default function GeneratePage() {
                         />
                       </div>
                     </div>
+                  ) : previewUrl ? (
+                    <div className="space-y-3">
+                      <video
+                        src={previewUrl}
+                        controls
+                        className="w-full rounded-lg border border-slate-300 bg-black"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleConfirmPublish}
+                          disabled={publishing}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
+                        >
+                          {publishing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                          {publishing ? 'Publishing...' : 'Looks Good — Publish to YouTube'}
+                        </button>
+                        <button
+                          onClick={handleDiscardPreview}
+                          disabled={publishing}
+                          className="px-4 py-2.5 border border-slate-300 text-slate-600 rounded-xl font-medium hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                        >
+                          Discard
+                        </button>
+                      </div>
+                    </div>
                   ) : (
                     <button
                       onClick={handleAutoCreate}
                       className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-colors"
                     >
                       <Wand2 className="w-5 h-5" />
-                      Auto-Create &amp; Publish
+                      Auto-Create Video
                     </button>
                   )}
                 </div>
