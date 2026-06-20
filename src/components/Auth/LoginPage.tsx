@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, Youtube, ArrowRight, Loader2, Chrome } from 'lucide-react';
+import {
+  Mail,
+  Lock,
+  Youtube,
+  ArrowRight,
+  Loader2,
+  Chrome,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 
@@ -11,80 +18,143 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
+  // Email/Password Login
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+    setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      if (!email || !password) {
+        setError('Please fill in all fields');
+        toast.error('Please fill in all fields');
+        setLoading(false);
+        return;
+      }
 
-      if (error) throw error;
+      const { error: signInError } =
+        await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-      toast.success('Login successful');
+      if (signInError) throw signInError;
+
+      toast.success('Login successful!');
       navigate('/dashboard');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Login failed';
-      setError(msg);
-      toast.error(msg);
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Login failed. Please try again.';
+
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
   };
 
+  // Google OAuth Login
   const handleGoogleSignIn = async () => {
-    setLoading(true);
     setError('');
+    setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: 'https://ba05c406.tubesync.pages.dev/auth/callback',
-        },
-      });
+      const { error: oauthError } =
+        await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo:
+              'https://ba05c406.tubesync.pages.dev/auth/callback',
+          },
+        });
 
-      if (error) throw error;
+      if (oauthError) throw oauthError;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Google login failed';
-      setError(msg);
-      toast.error(msg);
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Google sign-in failed. Please try again.';
+
+      setError(message);
+      toast.error(message);
       setLoading(false);
     }
   };
 
   return (
-    <div>
-      <form onSubmit={handleSubmit}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
+    <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
+      <div className="w-full max-w-md p-8 bg-slate-800 rounded-xl">
 
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <div className="flex items-center gap-2 mb-6">
+          <Youtube className="text-red-500" />
+          <h1 className="text-2xl font-bold">TubeSync Login</h1>
+        </div>
 
-        <button disabled={loading}>
-          {loading ? <Loader2 /> : 'Login'}
+        {error && (
+          <p className="text-red-400 text-sm mb-3">{error}</p>
+        )}
+
+        {/* Email Login */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+
+          <div className="flex items-center bg-slate-700 p-3 rounded">
+            <Mail className="mr-2" />
+            <input
+              type="email"
+              placeholder="Email"
+              className="bg-transparent w-full outline-none"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+
+          <div className="flex items-center bg-slate-700 p-3 rounded">
+            <Lock className="mr-2" />
+            <input
+              type="password"
+              placeholder="Password"
+              className="bg-transparent w-full outline-none"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-red-600 p-3 rounded flex justify-center items-center gap-2"
+          >
+            {loading ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <>
+                Login <ArrowRight />
+              </>
+            )}
+          </button>
+        </form>
+
+        <div className="my-4 text-center text-slate-400">OR</div>
+
+        {/* Google Login */}
+        <button
+          onClick={handleGoogleSignIn}
+          disabled={loading}
+          className="w-full bg-white text-black p-3 rounded flex items-center justify-center gap-2"
+        >
+          <Chrome />
+          Continue with Google
         </button>
-      </form>
 
-      <button onClick={handleGoogleSignIn} disabled={loading}>
-        <Chrome /> Continue with Google
-      </button>
-
-      {error && <p>{error}</p>}
-
-      <Link to="/register">Sign up</Link>
+        <p className="text-center mt-4 text-sm text-slate-400">
+          Don’t have account?{' '}
+          <Link to="/register" className="text-red-400">
+            Sign up
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }
