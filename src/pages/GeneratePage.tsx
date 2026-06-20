@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { Sparkles, ArrowRight, ArrowLeft, Check, Loader as Loader2, Type, Hash, Calendar, Clock, Eye, Upload, Wand as Wand2, FileVideo, X } from 'lucide-react';
 import { createVideo, queueForUpload, generateAIContent, updateVideo, logActivity, uploadVideoFile, pushVideoToYouTube, getYouTubeChannels } from '../lib/api';
 import { supabase } from '../lib/supabase';
+import { scriptToSlides, renderSlideshowVideo, type RenderProgress } from '../lib/videoRenderer';
 import type { Video, AIContent, YouTubeChannel } from '../types';
 
 type Step = 'details' | 'content' | 'preview' | 'upload';
@@ -44,6 +45,8 @@ export default function GeneratePage() {
   const [fileUploadStage, setFileUploadStage] = useState<'idle' | 'uploading' | 'done'>('idle');
   const [pushStage, setPushStage] = useState<'idle' | 'pushing' | 'done' | 'failed'>('idle');
   const [resultUrl, setResultUrl] = useState('');
+  const [autoRendering, setAutoRendering] = useState(false);
+  const [renderProgress, setRenderProgress] = useState<RenderProgress | null>(null);
 
   useEffect(() => {
     getYouTubeChannels()
@@ -182,6 +185,64 @@ export default function GeneratePage() {
     } catch (error) {
       setPushStage('failed');
       toast.error(error instanceof Error ? error.message : 'Failed to push to YouTube');
+    }
+  };
+
+  const handleAutoCreate = async () => {
+    if (!createdVideo) return;
+    if (!selectedChannelId) {
+      toast.error('Connect and select a YouTube channel first (Settings page)');
+      return;
+    }
+
+    const scriptText = aiContent?.scripts?.[0] || selectedDescription || selectedTitle;
+    if (!scriptText) {
+      toast.error('No script available to narrate. Go back and generate AI content first.');
+      return;
+    }
+
+    setAutoRendering(true);
+    setRenderProgress(null);
+    try {
+      const slides = scriptToSlides(scriptText);
+      toast('A browser prompt may appear asking to share this tab\'s audio — allow it for voiceover, or skip for a silent slideshow.', { duration: 6000 });
+
+      const { blob, hasAudio } = await renderSlideshowVideo(slides, selectedTitle || title, (p) => setRenderProgress(p));
+
+      if (!hasAudio) {
+        toast('Created without voiceover audio (silent slideshow). You can still publish it.', { duration: 5000 });
+      }
+
+      setFileUploadStage('uploading');
+      await uploadVideoFile(createdVideo.id, blob, undefined, `${createdVideo.id}.webm`);
+      setFileUploadStage('done');
+
+      setPushStage('pushing');
+      await pushVideoToYouTube(createdVideo.id, selectedChannelId);
+      const { data } = await supabase
+        .from('videos')
+        .select('status, youtube_video_url, error_message')
+        .eq('id', createdVideo.id)
+        .single();
+
+      if (data?.status === 'uploaded' && data.youtube_video_url) {
+        setResultUrl(data.youtube_video_url);
+        setPushStage('done');
+        toast.success('Video created and uploaded to YouTube!');
+      } else if (data?.status === 'failed') {
+        setPushStage('failed');
+        toast.error(data.error_message || 'Upload to YouTube failed');
+      } else {
+        setPushStage('done');
+        toast.success('Upload started — check Videos page for status');
+      }
+      setUploadComplete(true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Auto-create failed');
+      setPushStage('failed');
+    } finally {
+      setAutoRendering(false);
+      setRenderProgress(null);
     }
   };
 
@@ -487,6 +548,51 @@ export default function GeneratePage() {
                   </div>
                   <h2 className="text-xl font-bold text-slate-800 mb-1">Upload Your Video</h2>
                   <p className="text-slate-500 text-sm">Attach the video file and publish it to YouTube</p>
+                </div>
+
+                {/* One-click auto-create: AI script -> voiceover slideshow -> upload */}
+                <div className="p-4 rounded-xl border-2 border-red-200 bg-red-50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Wand2 className="w-5 h-5 text-red-600" />
+                    <h3 className="font-semibold text-slate-800">Auto-Create Video (Free)</h3>
+                  </div>
+                  <p className="text-sm text-slate-600 mb-3">
+                    Generates a narrated slideshow video from your script automatically and publishes it — no file needed.
+                  </p>
+                  {autoRendering ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        {renderProgress
+                          ? `${renderProgress.stage === 'rendering' ? `Rendering slide ${renderProgress.slideIndex + 1}/${renderProgress.totalSlides}` : renderProgress.stage}`
+                          : 'Starting...'}
+                      </div>
+                      <div className="w-full h-2 bg-red-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-red-600 transition-all"
+                          style={{
+                            width: renderProgress
+                              ? `${Math.round(((renderProgress.slideIndex + 1) / renderProgress.totalSlides) * 100)}%`
+                              : '5%',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleAutoCreate}
+                      className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-colors"
+                    >
+                      <Wand2 className="w-5 h-5" />
+                      Auto-Create &amp; Publish
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-slate-200" />
+                  <span className="text-xs text-slate-400 uppercase">or upload your own file</span>
+                  <div className="flex-1 h-px bg-slate-200" />
                 </div>
 
                 {/* File picker */}

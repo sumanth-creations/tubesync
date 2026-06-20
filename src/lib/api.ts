@@ -177,13 +177,16 @@ export async function queueForUpload(videoId: string, priority = 0): Promise<Upl
 // and records the path on the video row. Returns the storage path.
 export async function uploadVideoFile(
   videoId: string,
-  file: File,
-  onProgress?: (percent: number) => void
+  file: File | Blob,
+  onProgress?: (percent: number) => void,
+  fileName = 'video.webm'
 ): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not signed in');
 
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const name = file instanceof File ? file.name : fileName;
+  const type = file.type || 'video/mp4';
+  const safeName = name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const path = `${user.id}/${videoId}/${Date.now()}_${safeName}`;
 
   // Supabase JS storage upload doesn't expose progress natively in v2,
@@ -191,7 +194,7 @@ export async function uploadVideoFile(
   onProgress?.(0);
   const { error: uploadError } = await supabase.storage
     .from('video-files')
-    .upload(path, file, { upsert: true, contentType: file.type || 'video/mp4' });
+    .upload(path, file, { upsert: true, contentType: type });
   if (uploadError) throw uploadError;
   onProgress?.(100);
 
@@ -208,7 +211,11 @@ export async function uploadVideoFile(
 // edge function to process it (rather than waiting for a poller).
 export async function pushVideoToYouTube(videoId: string, youtubeChannelId: string): Promise<void> {
   await queueForUpload(videoId);
-  await supabase.from('videos').update({ status: 'queued', youtube_channel_id: youtubeChannelId }).eq('id', videoId);
+  const { error: updateError } = await supabase
+    .from('videos')
+    .update({ status: 'queued', youtube_channel_id: youtubeChannelId })
+    .eq('id', videoId);
+  if (updateError) throw updateError;
 
   const { data: { session } } = await supabase.auth.getSession();
   const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/youtube-upload`, {
@@ -217,7 +224,9 @@ export async function pushVideoToYouTube(videoId: string, youtubeChannelId: stri
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${session?.access_token}`,
     },
-    body: JSON.stringify({ videoId }),
+    // Pass youtubeChannelId explicitly so the function doesn't rely on
+    // having just read back the row we wrote a moment ago.
+    body: JSON.stringify({ videoId, youtubeChannelId }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -430,3 +439,4 @@ export async function getDashboardStats(): Promise<{
     recentActivity: activities,
   };
 }
+
