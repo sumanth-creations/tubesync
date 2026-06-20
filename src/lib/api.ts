@@ -440,3 +440,89 @@ export async function getDashboardStats(): Promise<{
   };
 }
 
+// ============ BYOK Gemini API Key (free tier, user's own key) ============
+export async function getUserSettings(): Promise<{ gemini_api_key: string | null; channel_niche: string | null } | null> {
+  const { data, error } = await supabase.from('user_settings').select('gemini_api_key, channel_niche').maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function saveGeminiApiKey(apiKey: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not signed in');
+  const { error } = await supabase
+    .from('user_settings')
+    .upsert({ user_id: user.id, gemini_api_key: apiKey, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
+export async function saveChannelNiche(niche: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not signed in');
+  const { error } = await supabase
+    .from('user_settings')
+    .upsert({ user_id: user.id, channel_niche: niche, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
+async function callAiGenerate(payload: Record<string, unknown>): Promise<any> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not signed in');
+
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-generate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const body = await res.json();
+  if (!res.ok) {
+    if (body.error === 'no_api_key') {
+      throw new Error('NO_API_KEY');
+    }
+    throw new Error(body.error || body.message || 'AI generation failed');
+  }
+  return body;
+}
+
+// Real AI content generation via the user's own Gemini key.
+// Throws Error('NO_API_KEY') if the user hasn't added a key yet —
+// callers should catch this and prompt the user to add one in Settings.
+export async function generateAIContentReal(title: string, format: 'short' | 'medium' | 'long' = 'short'): Promise<AIContent> {
+  const settings = await getUserSettings();
+  const apiKey = settings?.gemini_api_key;
+  if (!apiKey) throw new Error('NO_API_KEY');
+
+  return callAiGenerate({ mode: 'content', apiKey, title, format });
+}
+
+export interface FactsContent {
+  title: string;
+  facts: { number: number; fact: string }[];
+  social_caption: string;
+  youtube_description: string;
+  image_search_queries: string[];
+}
+
+export async function generateFactsContent(keyword: string): Promise<FactsContent> {
+  const settings = await getUserSettings();
+  const apiKey = settings?.gemini_api_key;
+  if (!apiKey) throw new Error('NO_API_KEY');
+
+  return callAiGenerate({ mode: 'facts', apiKey, keyword });
+}
+
+export async function chatWithAgent(
+  message: string,
+  history: { role: 'user' | 'assistant'; content: string }[]
+): Promise<string> {
+  const settings = await getUserSettings();
+  const apiKey = settings?.gemini_api_key;
+  if (!apiKey) throw new Error('NO_API_KEY');
+
+  const result = await callAiGenerate({ mode: 'chat', apiKey, message, history });
+  return result.reply;
+}

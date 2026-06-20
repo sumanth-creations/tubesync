@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Send, Bot, User, Sparkles, Loader as Loader2, Wand as Wand2, Video, Upload, TrendingUp } from 'lucide-react';
-import { generateAIContent, createVideo, logActivity } from '../lib/api';
-import type { AIContent } from '../types';
+import { chatWithAgent, logActivity } from '../lib/api';
 
 interface Message {
   id: string;
@@ -15,7 +15,7 @@ export default function AIAgentPage() {
     {
       id: 'welcome',
       role: 'assistant',
-      content: 'Hello! I am your YouTube Automation Agent. I can help you with:\n\n• Generate video ideas and scripts\n• Create SEO-optimized titles and descriptions\n• Suggest trending topics\n• Optimize your content strategy\n• Schedule uploads\n\nWhat would you like to work on today?',
+      content: 'Hey! I\'m your AI assistant — ask me anything about your channel, video ideas, scripts, titles, or just chat. I understand Telugu, English, or a mix of both. What\'s on your mind?',
     },
   ]);
   const [input, setInput] = useState('');
@@ -35,59 +35,35 @@ export default function AIAgentPage() {
       content: input,
     };
 
+    const historyForApi = messages
+      .filter((m) => m.id !== 'welcome')
+      .map((m) => ({ role: m.role, content: m.content }));
+
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setLoading(true);
 
     try {
-      const lowerInput = input.toLowerCase();
-      let response: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: '',
-      };
-
-      if (lowerInput.includes('idea') || lowerInput.includes('topic') || lowerInput.includes('trending')) {
-        const aiContent = await generateAIContent(input.replace(/(ideas?|topics?|trending)/gi, '').trim() || 'YouTube content', 'medium');
-        response.content = `Here are some trending content ideas for you:\n\n${aiContent.video_ideas.map((idea, i) => `${i + 1}. ${idea}`).join('\n')}\n\nTrending topics:\n${aiContent.trending_topics.map((t, i) => `${i + 1}. ${t}`).join('\n')}`;
-        response.suggestions = aiContent.video_ideas.slice(0, 3);
-      } else if (lowerInput.includes('title') || lowerInput.includes('seo')) {
-        const aiContent = await generateAIContent(input.replace(/(titles?|seo)/gi, '').trim() || 'YouTube video', 'medium');
-        response.content = `Here are SEO-optimized title suggestions:\n\n${aiContent.titles.map((title, i) => `${i + 1}. ${title} (Viral Score: ${aiContent.viral_scores[i]}%)`).join('\n')}\n\nSEO Keywords: ${aiContent.seo_keywords.join(', ')}`;
-        response.suggestions = aiContent.titles.slice(0, 3);
-      } else if (lowerInput.includes('script') || lowerInput.includes('description')) {
-        const aiContent = await generateAIContent(input.replace(/(scripts?|descriptions?)/gi, '').trim() || 'YouTube video', 'medium');
-        response.content = `Here are script suggestions:\n\n${aiContent.scripts.map((script, i) => `Script ${i + 1}:\n${script}`).join('\n\n')}\n\nDescriptions:\n${aiContent.descriptions.map((d, i) => `${i + 1}. ${d}`).join('\n')}`;
-      } else if (lowerInput.includes('hashtag') || lowerInput.includes('tag')) {
-        const aiContent = await generateAIContent(input.replace(/(hashtags?|tags?)/gi, '').trim() || 'YouTube video', 'medium');
-        response.content = `Recommended tags: ${aiContent.tags.join(', ')}\n\nHashtags: ${aiContent.hashtags.join(' ')}\n\nSEO Keywords: ${aiContent.seo_keywords.join(', ')}`;
-      } else if (lowerInput.includes('thumbnail')) {
-        const aiContent = await generateAIContent(input.replace(/(thumbnails?)/gi, '').trim() || 'YouTube video', 'medium');
-        response.content = `Thumbnail ideas:\n\n${aiContent.thumbnail_ideas.map((idea, i) => `${i + 1}. ${idea}`).join('\n')}`;
-      } else if (lowerInput.includes('schedule') || lowerInput.includes('upload')) {
-        response.content = 'I can help you schedule uploads! Go to the Calendar page to set up your content schedule, or use the Upload Queue to manage pending uploads.\n\nYou can:\n• Schedule daily uploads\n• Set custom frequencies\n• Bulk upload videos\n• Auto-publish at optimal times';
-      } else if (lowerInput.includes('short')) {
-        response.content = 'I can help you create Shorts from your long-form videos! Go to the Shorts Generator page to:\n\n• Extract viral moments\n• Auto-generate captions\n• Create 9:16 vertical format\n• Generate multiple variations';
-      } else if (lowerInput.includes('analytics') || lowerInput.includes('growth') || lowerInput.includes('performance')) {
-        response.content = 'Check your Dashboard for growth insights! I track:\n\n• Subscriber growth\n• View trends\n• Upload success rates\n• Best performing content\n• Audience engagement metrics';
-      } else {
-        const aiContent = await generateAIContent(input, 'medium');
-        response.content = `Here's what I found for "${input}":\n\n**Titles:**\n${aiContent.titles.slice(0, 3).join('\n')}\n\n**Tags:** ${aiContent.tags.slice(0, 5).join(', ')}\n\n**Hashtags:** ${aiContent.hashtags.slice(0, 4).join(' ')}\n\n**Trending Topics:**\n${aiContent.trending_topics.slice(0, 3).join('\n')}\n\nWould you like me to generate a full script or schedule this content?`;
-      }
-
-      setMessages((prev) => [...prev, response]);
+      const replyText = await chatWithAgent(input, historyForApi);
+      setMessages((prev) => [
+        ...prev,
+        { id: (Date.now() + 1).toString(), role: 'assistant', content: replyText },
+      ]);
       await logActivity({
         type: 'ai_generated',
-        title: 'AI Agent generated content',
+        title: 'AI Agent chat',
         description: input.substring(0, 100),
       }).catch(() => {});
     } catch (error) {
+      const isNoKey = error instanceof Error && error.message === 'NO_API_KEY';
       setMessages((prev) => [
         ...prev,
         {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: 'Sorry, I encountered an error. Please try again.',
+          content: isNoKey
+            ? 'I need a free Gemini API key to chat properly. Head to Settings and paste in a key (it only takes a minute and it\'s free) — then come back and ask me anything!'
+            : 'Sorry, I ran into an error talking to the AI service. Please try again in a moment.',
         },
       ]);
     } finally {
@@ -114,7 +90,10 @@ export default function AIAgentPage() {
         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
           <Bot className="w-7 h-7 text-purple-600" /> AI YouTube Agent
         </h1>
-        <p className="text-slate-600">Your intelligent assistant for YouTube growth and automation</p>
+        <p className="text-slate-600">
+          Your intelligent assistant for YouTube growth and automation. Powered by your own free{' '}
+          <Link to="/settings" className="text-purple-600 underline">Gemini API key</Link>.
+        </p>
       </div>
 
       {/* Quick Actions */}

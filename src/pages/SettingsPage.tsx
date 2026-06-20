@@ -6,6 +6,7 @@ import {
   getYouTubeChannels, disconnectYouTube, refreshYouTubeToken,
   getYouTubeConnectUrl, handleYouTubeCallback, getUploadSchedules,
   createUploadSchedule, updateUploadSchedule, deleteUploadSchedule,
+  getUserSettings, saveGeminiApiKey, saveChannelNiche,
 } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { YouTubeChannel, UploadSchedule } from '../types';
@@ -19,6 +20,19 @@ export default function SettingsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [schedules, setSchedules] = useState<UploadSchedule[]>([]);
   const [showScheduleForm, setShowScheduleForm] = useState(false);
+  const [geminiKey, setGeminiKey] = useState('');
+  const [niche, setNiche] = useState('');
+  const [savingKey, setSavingKey] = useState(false);
+  const [keyVisible, setKeyVisible] = useState(false);
+
+  useEffect(() => {
+    getUserSettings()
+      .then((s) => {
+        if (s?.gemini_api_key) setGeminiKey(s.gemini_api_key);
+        if (s?.channel_niche) setNiche(s.channel_niche);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -106,6 +120,19 @@ export default function SettingsPage() {
       toast.error('Failed to disconnect');
     } finally {
       setDisconnecting(false);
+    }
+  }
+
+  async function handleSaveAiSettings() {
+    setSavingKey(true);
+    try {
+      if (geminiKey.trim()) await saveGeminiApiKey(geminiKey.trim());
+      if (niche.trim()) await saveChannelNiche(niche.trim());
+      toast.success('AI settings saved');
+    } catch (error) {
+      toast.error('Failed to save AI settings');
+    } finally {
+      setSavingKey(false);
     }
   }
 
@@ -307,6 +334,60 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+
+      {/* AI Settings (BYOK Gemini key) */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <div className="flex items-center gap-3 mb-2">
+          <Key className="w-5 h-5 text-red-600" />
+          <h2 className="font-semibold text-slate-800">AI Settings</h2>
+        </div>
+        <p className="text-sm text-slate-500 mb-4">
+          Add your own free Gemini API key to unlock real AI-generated titles, descriptions, scripts, and the AI Agent chat — at no cost to you.{' '}
+          <a
+            href="https://aistudio.google.com/apikey"
+            target="_blank"
+            rel="noreferrer"
+            className="text-red-600 underline inline-flex items-center gap-1"
+          >
+            Get a free key <ExternalLink className="w-3 h-3" />
+          </a>
+        </p>
+
+        <label className="block text-sm font-medium text-slate-700 mb-1">Gemini API Key</label>
+        <div className="flex gap-2 mb-4">
+          <input
+            type={keyVisible ? 'text' : 'password'}
+            value={geminiKey}
+            onChange={(e) => setGeminiKey(e.target.value)}
+            placeholder="Paste your Gemini API key"
+            className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 outline-none"
+          />
+          <button
+            type="button"
+            onClick={() => setKeyVisible((v) => !v)}
+            className="px-3 rounded-xl border border-slate-300 text-slate-500 hover:bg-slate-50"
+          >
+            <Eye className="w-4 h-4" />
+          </button>
+        </div>
+
+        <label className="block text-sm font-medium text-slate-700 mb-1">Channel Niche (optional)</label>
+        <input
+          type="text"
+          value={niche}
+          onChange={(e) => setNiche(e.target.value)}
+          placeholder="e.g. tech facts, motivational quotes, cooking tips"
+          className="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 outline-none mb-4"
+        />
+
+        <button
+          onClick={handleSaveAiSettings}
+          disabled={savingKey}
+          className="px-5 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
+        >
+          {savingKey ? 'Saving...' : 'Save AI Settings'}
+        </button>
+      </div>
     </div>
   );
 }

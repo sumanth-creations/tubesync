@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Sparkles, ArrowRight, ArrowLeft, Check, Loader as Loader2, Type, Hash, Calendar, Clock, Eye, Upload, Wand as Wand2, FileVideo, X } from 'lucide-react';
-import { createVideo, queueForUpload, generateAIContent, updateVideo, logActivity, uploadVideoFile, pushVideoToYouTube, getYouTubeChannels } from '../lib/api';
+import { createVideo, queueForUpload, generateAIContent, generateAIContentReal, updateVideo, logActivity, uploadVideoFile, pushVideoToYouTube, getYouTubeChannels } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { scriptToSlides, renderSlideshowVideo, type RenderProgress } from '../lib/videoRenderer';
 import type { Video, AIContent, YouTubeChannel } from '../types';
@@ -66,7 +66,17 @@ export default function GeneratePage() {
     }
     setGenerating(true);
     try {
-      const content = await generateAIContent(title, format);
+      let content;
+      try {
+        content = await generateAIContentReal(title, format);
+      } catch (err) {
+        if (err instanceof Error && err.message === 'NO_API_KEY') {
+          toast('No Gemini API key set — using basic templates. Add a free key in Settings for real AI content.', { duration: 6000 });
+          content = await generateAIContent(title, format);
+        } else {
+          throw err;
+        }
+      }
       setAiContent(content);
       setSelectedTitle(content.titles[0] || title);
       setSelectedDescription(content.descriptions[0] || '');
