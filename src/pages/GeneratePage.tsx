@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Sparkles, ArrowRight, ArrowLeft, Check, Loader as Loader2, Type, Hash, Calendar, Clock, Eye, Upload, Wand as Wand2, FileVideo, X } from 'lucide-react';
 import { createVideo, queueForUpload, generateAIContent, updateVideo, logActivity, uploadVideoFile, pushVideoToYouTube, getYouTubeChannels } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import type { Video, AIContent, YouTubeChannel } from '../types';
 
 type Step = 'details' | 'content' | 'preview' | 'upload';
@@ -161,9 +162,11 @@ export default function GeneratePage() {
       await pushVideoToYouTube(createdVideo.id, selectedChannelId);
       // Poll briefly for the final status since the edge function runs synchronously
       // and returns once the YouTube upload finishes (or fails).
-      const { data } = await import('../lib/supabase').then((m) =>
-        m.supabase.from('videos').select('status, youtube_video_url, error_message').eq('id', createdVideo.id).single()
-      );
+      const { data } = await supabase
+        .from('videos')
+        .select('status, youtube_video_url, error_message')
+        .eq('id', createdVideo.id)
+        .single();
       if (data?.status === 'uploaded' && data.youtube_video_url) {
         setResultUrl(data.youtube_video_url);
         setPushStage('done');
