@@ -45,7 +45,10 @@ export default function LoginPage() {
     try {
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${window.location.origin}/auth/callback` },
+       // options: { redirectTo: `${window.location.origin}/auth/callback` },
+       options: {
+               redirectTo: 'https://ba05c406.tubesync.pages.dev/auth/callback'
+        },
       });
       if (oauthError) throw oauthError;
     } catch (err) {

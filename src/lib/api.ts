@@ -34,7 +34,10 @@ export async function signIn(email: string, password: string) {
 export async function signInWithGoogle() {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: `${window.location.origin}/auth/callback` },
+   // options: { redirectTo: `${window.location.origin}/auth/callback` },
+   options: {
+  redirectTo: 'https://ba05c406.tubesync.pages.dev/auth/callback'
+  },
   });
   if (error) throw error;
   return data;
