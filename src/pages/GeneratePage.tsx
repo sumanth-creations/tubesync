@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Sparkles, ArrowRight, ArrowLeft, Check, Loader as Loader2, Type, Hash, Calendar, Clock, Eye, Upload, Wand as Wand2 } from 'lucide-react';
-import { createVideo, queueForUpload, generateAIContent, updateVideo, logActivity } from '../lib/api';
-import type { Video, AIContent } from '../types';
+import { Sparkles, ArrowRight, ArrowLeft, Check, Loader as Loader2, Type, Hash, Calendar, Clock, Eye, Upload, Wand as Wand2, FileVideo, X } from 'lucide-react';
+import { createVideo, queueForUpload, generateAIContent, updateVideo, logActivity, uploadVideoFile, pushVideoToYouTube, getYouTubeChannels } from '../lib/api';
+import type { Video, AIContent, YouTubeChannel } from '../types';
 
 type Step = 'details' | 'content' | 'preview' | 'upload';
 
@@ -36,6 +36,22 @@ export default function GeneratePage() {
   const [createdVideo, setCreatedVideo] = useState<Video | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadComplete, setUploadComplete] = useState(false);
+
+  const [channels, setChannels] = useState<YouTubeChannel[]>([]);
+  const [selectedChannelId, setSelectedChannelId] = useState('');
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [fileUploadStage, setFileUploadStage] = useState<'idle' | 'uploading' | 'done'>('idle');
+  const [pushStage, setPushStage] = useState<'idle' | 'pushing' | 'done' | 'failed'>('idle');
+  const [resultUrl, setResultUrl] = useState('');
+
+  useEffect(() => {
+    getYouTubeChannels()
+      .then((list) => {
+        setChannels(list);
+        if (list[0]) setSelectedChannelId(list[0].youtube_channel_id);
+      })
+      .catch(() => {});
+  }, []);
 
   const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
 
@@ -107,7 +123,66 @@ export default function GeneratePage() {
     }
   };
 
-  const handleUpload = async () => {
+  const handleFileSelect = (file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith('video/')) {
+      toast.error('Please select a video file');
+      return;
+    }
+    const maxBytes = 500 * 1024 * 1024; // 500MB soft cap for edge-function-based upload
+    if (file.size > maxBytes) {
+      toast.error('File too large for direct upload (max 500MB). Try a smaller export.');
+      return;
+    }
+    setVideoFile(file);
+  };
+
+  const handleUploadFile = async () => {
+    if (!createdVideo || !videoFile) return;
+    setFileUploadStage('uploading');
+    try {
+      await uploadVideoFile(createdVideo.id, videoFile);
+      setFileUploadStage('done');
+      toast.success('Video file uploaded!');
+    } catch (error) {
+      setFileUploadStage('idle');
+      toast.error(error instanceof Error ? error.message : 'File upload failed');
+    }
+  };
+
+  const handlePushToYouTube = async () => {
+    if (!createdVideo) return;
+    if (!selectedChannelId) {
+      toast.error('Connect and select a YouTube channel first (Settings page)');
+      return;
+    }
+    setPushStage('pushing');
+    try {
+      await pushVideoToYouTube(createdVideo.id, selectedChannelId);
+      // Poll briefly for the final status since the edge function runs synchronously
+      // and returns once the YouTube upload finishes (or fails).
+      const { data } = await import('../lib/supabase').then((m) =>
+        m.supabase.from('videos').select('status, youtube_video_url, error_message').eq('id', createdVideo.id).single()
+      );
+      if (data?.status === 'uploaded' && data.youtube_video_url) {
+        setResultUrl(data.youtube_video_url);
+        setPushStage('done');
+        toast.success('Uploaded to YouTube!');
+      } else if (data?.status === 'failed') {
+        setPushStage('failed');
+        toast.error(data.error_message || 'Upload to YouTube failed');
+      } else {
+        setPushStage('done');
+        toast.success('Upload started — check Videos page for status');
+      }
+      setUploadComplete(true);
+    } catch (error) {
+      setPushStage('failed');
+      toast.error(error instanceof Error ? error.message : 'Failed to push to YouTube');
+    }
+  };
+
+  const handleQueueOnly = async () => {
     if (!createdVideo) return;
     setUploading(true);
     try {
@@ -359,36 +434,145 @@ export default function GeneratePage() {
 
       case 'upload':
         return (
-          <div className="max-w-lg mx-auto text-center py-12">
+          <div className="max-w-lg mx-auto py-6">
             {uploadComplete ? (
-              <div>
-                <div className="w-20 h-20 mx-auto rounded-full bg-green-100 flex items-center justify-center mb-6">
-                  <Check className="w-10 h-10 text-green-600" />
+              <div className="text-center">
+                {pushStage === 'failed' ? (
+                  <>
+                    <div className="w-20 h-20 mx-auto rounded-full bg-red-100 flex items-center justify-center mb-6">
+                      <X className="w-10 h-10 text-red-600" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-800 mb-2">Upload Failed</h2>
+                    <p className="text-slate-500 mb-8">Check the Videos page for the error message, fix it, and retry.</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-20 h-20 mx-auto rounded-full bg-green-100 flex items-center justify-center mb-6">
+                      <Check className="w-10 h-10 text-green-600" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-800 mb-2">
+                      {resultUrl ? 'Uploaded to YouTube!' : 'Video Queued!'}
+                    </h2>
+                    {resultUrl ? (
+                      <a
+                        href={resultUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-red-600 underline break-all mb-8 inline-block"
+                      >
+                        {resultUrl}
+                      </a>
+                    ) : (
+                      <p className="text-slate-500 mb-8">Your video has been added to the upload queue.</p>
+                    )}
+                  </>
+                )}
+                <div>
+                  <button
+                    onClick={handleFinish}
+                    className="px-6 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-colors"
+                  >
+                    View My Videos
+                  </button>
                 </div>
-                <h2 className="text-2xl font-bold text-slate-800 mb-2">Video Queued!</h2>
-                <p className="text-slate-500 mb-8">Your video has been added to the upload queue.</p>
-                <button
-                  onClick={handleFinish}
-                  className="px-6 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-colors"
-                >
-                  View My Videos
-                </button>
               </div>
             ) : (
-              <div>
-                <div className="w-20 h-20 mx-auto rounded-full bg-red-100 flex items-center justify-center mb-6">
-                  <Upload className="w-10 h-10 text-red-600" />
+              <div className="space-y-6">
+                <div className="text-center">
+                  <div className="w-16 h-16 mx-auto rounded-full bg-red-100 flex items-center justify-center mb-4">
+                    <Upload className="w-8 h-8 text-red-600" />
+                  </div>
+                  <h2 className="text-xl font-bold text-slate-800 mb-1">Upload Your Video</h2>
+                  <p className="text-slate-500 text-sm">Attach the video file and publish it to YouTube</p>
                 </div>
-                <h2 className="text-2xl font-bold text-slate-800 mb-2">Ready to Upload</h2>
-                <p className="text-slate-500 mb-8">Your video is ready. Add it to the upload queue.</p>
-                <button
-                  onClick={handleUpload}
-                  disabled={uploading}
-                  className="px-6 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
-                >
-                  {uploading ? <Loader2 className="w-5 h-5 animate-spin inline mr-2" /> : null}
-                  {uploading ? 'Adding to Queue...' : 'Add to Upload Queue'}
-                </button>
+
+                {/* File picker */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Video File</label>
+                  {videoFile ? (
+                    <div className="flex items-center justify-between p-4 rounded-xl border-2 border-slate-200 bg-slate-50">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <FileVideo className="w-6 h-6 text-red-600 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-800 truncate">{videoFile.name}</p>
+                          <p className="text-xs text-slate-500">{(videoFile.size / (1024 * 1024)).toFixed(1)} MB</p>
+                        </div>
+                      </div>
+                      {fileUploadStage !== 'uploading' && (
+                        <button
+                          onClick={() => { setVideoFile(null); setFileUploadStage('idle'); }}
+                          className="text-slate-400 hover:text-slate-600 flex-shrink-0"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center p-8 rounded-xl border-2 border-dashed border-slate-300 hover:border-red-400 cursor-pointer transition-colors">
+                      <FileVideo className="w-10 h-10 text-slate-300 mb-2" />
+                      <span className="text-sm text-slate-500">Click to select a video file (max 500MB)</span>
+                      <input
+                        type="file"
+                        accept="video/*"
+                        className="hidden"
+                        onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {videoFile && fileUploadStage !== 'done' && (
+                  <button
+                    onClick={handleUploadFile}
+                    disabled={fileUploadStage === 'uploading'}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-slate-800 text-white rounded-xl font-medium hover:bg-slate-900 disabled:opacity-50 transition-colors"
+                  >
+                    {fileUploadStage === 'uploading' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                    {fileUploadStage === 'uploading' ? 'Uploading file...' : 'Upload File to Storage'}
+                  </button>
+                )}
+
+                {fileUploadStage === 'done' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">YouTube Channel</label>
+                      {channels.length === 0 ? (
+                        <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                          No YouTube channel connected. Go to Settings to connect one, then come back.
+                        </p>
+                      ) : (
+                        <select
+                          value={selectedChannelId}
+                          onChange={(e) => setSelectedChannelId(e.target.value)}
+                          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 outline-none bg-white"
+                        >
+                          {channels.map((c) => (
+                            <option key={c.id} value={c.youtube_channel_id}>{c.channel_title}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={handlePushToYouTube}
+                      disabled={pushStage === 'pushing' || channels.length === 0}
+                      className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
+                    >
+                      {pushStage === 'pushing' ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+                      {pushStage === 'pushing' ? 'Publishing to YouTube...' : 'Publish to YouTube Now'}
+                    </button>
+                  </>
+                )}
+
+                <div className="text-center">
+                  <button
+                    onClick={handleQueueOnly}
+                    disabled={uploading}
+                    className="text-sm text-slate-400 hover:text-slate-600 underline"
+                  >
+                    {uploading ? 'Adding to queue...' : "Skip file upload, just save to queue for later"}
+                  </button>
+                </div>
               </div>
             )}
           </div>

@@ -34,10 +34,7 @@ export async function signIn(email: string, password: string) {
 export async function signInWithGoogle() {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-   // options: { redirectTo: `${window.location.origin}/auth/callback` },
-   options: {
-  redirectTo: 'https://ba05c406.tubesync.pages.dev/auth/callback'
-  },
+    options: { redirectTo: `${window.location.origin}/auth/callback` },
   });
   if (error) throw error;
   return data;
@@ -174,6 +171,58 @@ export async function queueForUpload(videoId: string, priority = 0): Promise<Upl
     .single();
   if (error) throw error;
   return data;
+}
+
+// Uploads a video file to Supabase Storage under the current user's folder
+// and records the path on the video row. Returns the storage path.
+export async function uploadVideoFile(
+  videoId: string,
+  file: File,
+  onProgress?: (percent: number) => void
+): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not signed in');
+
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = `${user.id}/${videoId}/${Date.now()}_${safeName}`;
+
+  // Supabase JS storage upload doesn't expose progress natively in v2,
+  // so we report a simple start/finish signal to the caller.
+  onProgress?.(0);
+  const { error: uploadError } = await supabase.storage
+    .from('video-files')
+    .upload(path, file, { upsert: true, contentType: file.type || 'video/mp4' });
+  if (uploadError) throw uploadError;
+  onProgress?.(100);
+
+  const { error: updateError } = await supabase
+    .from('videos')
+    .update({ file_path: path, status: 'ready' })
+    .eq('id', videoId);
+  if (updateError) throw updateError;
+
+  return path;
+}
+
+// Queues the video for upload AND immediately invokes the youtube-upload
+// edge function to process it (rather than waiting for a poller).
+export async function pushVideoToYouTube(videoId: string, youtubeChannelId: string): Promise<void> {
+  await queueForUpload(videoId);
+  await supabase.from('videos').update({ status: 'queued', youtube_channel_id: youtubeChannelId }).eq('id', videoId);
+
+  const { data: { session } } = await supabase.auth.getSession();
+  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/youtube-upload`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session?.access_token}`,
+    },
+    body: JSON.stringify({ videoId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || 'Failed to start YouTube upload');
+  }
 }
 
 export async function retryUpload(videoId: string): Promise<void> {
