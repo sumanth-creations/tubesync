@@ -32,10 +32,11 @@ export default function AIAgentPage() {
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-Publish Assistant state
+  // Auto-Publish Assistant state (batch upload — multiple videos queued)
   const [publishStep, setPublishStep] = useState<PublishStep>('idle');
-  const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [metadata, setMetadata] = useState<{ title: string; description: string; tags: string[]; hashtags: string[] } | null>(null);
+  const [videoFiles, setVideoFiles] = useState<File[]>([]);
+  const [metadataList, setMetadataList] = useState<{ file: File; title: string; description: string; tags: string[]; hashtags: string[] }[]>([]);
+  const [analyzeProgress, setAnalyzeProgress] = useState({ done: 0, total: 0 });
   const [privacyStatus, setPrivacyStatus] = useState<'public' | 'unlisted' | 'private' | null>(null);
   const [madeForKids, setMadeForKids] = useState<boolean | null>(null);
   const [bestTime, setBestTime] = useState<BestTimeSuggestion | null>(null);
@@ -43,6 +44,8 @@ export default function AIAgentPage() {
   const [selectedChannelId, setSelectedChannelId] = useState('');
   const [publishError, setPublishError] = useState('');
   const [wasScheduled, setWasScheduled] = useState(false);
+  const [scheduledCount, setScheduledCount] = useState(0);
+  const [publishProgress, setPublishProgress] = useState({ done: 0, total: 0 });
 
   useEffect(() => {
     getYouTubeChannels().then((list) => {
@@ -55,27 +58,40 @@ export default function AIAgentPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handlePublishFileSelect = async (file: File | null) => {
-    if (!file) return;
-    if (!file.type.startsWith('video/')) {
-      setPublishError('Please select a video file');
+  const handlePublishFilesSelect = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const fileArray = Array.from(files);
+    const invalid = fileArray.find((f) => !f.type.startsWith('video/'));
+    if (invalid) {
+      setPublishError('Please select only video files');
       return;
     }
-    setVideoFile(file);
+
+    setVideoFiles(fileArray);
     setPublishStep('analyzing');
     setPublishError('');
+    setAnalyzeProgress({ done: 0, total: fileArray.length });
+
     try {
       const settings = await getUserSettings();
-      const meta = await generateVideoMetadata(file.name, settings?.channel_niche || undefined);
-      setMetadata(meta);
-      const time = suggestBestPostTime(settings?.channel_niche || undefined);
-      setBestTime(time);
+      const niche = settings?.channel_niche || undefined;
+      const results: typeof metadataList = [];
+
+      for (let i = 0; i < fileArray.length; i++) {
+        const file = fileArray[i];
+        const meta = await generateVideoMetadata(file.name, niche);
+        results.push({ file, ...meta });
+        setAnalyzeProgress({ done: i + 1, total: fileArray.length });
+      }
+
+      setMetadataList(results);
+      setBestTime(suggestBestPostTime(niche));
       setPublishStep('review');
     } catch (error) {
       const isNoKey = error instanceof Error && error.message === 'NO_API_KEY';
       setPublishError(isNoKey
         ? 'Add your free Gemini API key in Settings first to use this feature.'
-        : 'Could not analyze the video. Please try again.');
+        : 'Could not analyze the videos. Please try again.');
       setPublishStep('failed');
     }
   };
@@ -90,32 +106,45 @@ export default function AIAgentPage() {
     setPublishStep('scheduling');
   };
 
-  const handleScheduleAndWait = async () => {
-    if (!bestTime || !videoFile || !metadata || !selectedChannelId || !privacyStatus) return;
+  // Schedules every video in the batch, one per day, each at the same
+  // suggested best-time-of-day — the cron worker (auto-publish-worker)
+  // then publishes each one automatically when its time arrives, even if
+  // this browser is closed in the meantime.
+  const handleScheduleBatch = async () => {
+    if (!bestTime || metadataList.length === 0 || !selectedChannelId || !privacyStatus) return;
     setPublishStep('publishing');
+    setPublishProgress({ done: 0, total: metadataList.length });
     try {
-      const video = await createVideo({
-        title: metadata.title,
-        description: metadata.description,
-        tags: metadata.tags,
-        hashtags: metadata.hashtags,
-        privacy_status: privacyStatus,
-        status: 'draft',
-      });
-      // Upload the file now — the cron worker will publish it later at
-      // the scheduled time, even if this browser tab is closed.
-      await uploadVideoFile(video.id, videoFile, undefined, videoFile.name);
+      let scheduled = 0;
+      for (let i = 0; i < metadataList.length; i++) {
+        const meta = metadataList[i];
+        const video = await createVideo({
+          title: meta.title,
+          description: meta.description,
+          tags: meta.tags,
+          hashtags: meta.hashtags,
+          privacy_status: privacyStatus,
+          status: 'draft',
+        });
+        await uploadVideoFile(video.id, meta.file, undefined, meta.file.name);
 
-      const targetTime = computeNextTargetDate(bestTime.dayOfWeek, bestTime.hour);
-      await scheduleAutoPublish(video.id, selectedChannelId, targetTime);
+        // Day 0 = first video at the next best-time slot, Day 1 = the
+        // following day at the same time, and so on — one video per day.
+        const targetTime = computeNextTargetDate(bestTime.dayOfWeek, bestTime.hour, i);
+        await scheduleAutoPublish(video.id, selectedChannelId, targetTime);
 
-      await logActivity({
-        type: 'video_scheduled',
-        title: 'Video scheduled for auto-publish',
-        description: `${metadata.title} — scheduled for ${bestTime.label}`,
-        video_id: video.id,
-      }).catch(() => {});
+        await logActivity({
+          type: 'video_scheduled',
+          title: 'Video added to daily auto-publish queue',
+          description: `${meta.title} — scheduled for ${targetTime.toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`,
+          video_id: video.id,
+        }).catch(() => {});
 
+        scheduled++;
+        setPublishProgress({ done: scheduled, total: metadataList.length });
+      }
+
+      setScheduledCount(scheduled);
       setWasScheduled(true);
       setPublishStep('done');
     } catch (error) {
@@ -124,31 +153,47 @@ export default function AIAgentPage() {
     }
   };
 
-  const handlePublishNow = () => {
-    handleFinalPublish();
-  };
-
-  const handleFinalPublish = async () => {
-    if (!videoFile || !metadata || !selectedChannelId || !privacyStatus) return;
+  const handlePublishNow = async () => {
+    if (metadataList.length === 0 || !selectedChannelId || !privacyStatus) return;
     setPublishStep('publishing');
+    setPublishProgress({ done: 0, total: metadataList.length });
     try {
-      const video = await createVideo({
-        title: metadata.title,
-        description: metadata.description,
-        tags: metadata.tags,
-        hashtags: metadata.hashtags,
-        privacy_status: privacyStatus,
-        status: 'draft',
+      // First video publishes immediately; the rest still queue for the
+      // following days at the best-time slot, one per day.
+      const [first, ...rest] = metadataList;
+
+      const firstVideo = await createVideo({
+        title: first.title, description: first.description, tags: first.tags,
+        hashtags: first.hashtags, privacy_status: privacyStatus, status: 'draft',
       });
-      await uploadVideoFile(video.id, videoFile, undefined, videoFile.name);
-      await pushVideoToYouTube(video.id, selectedChannelId);
+      await uploadVideoFile(firstVideo.id, first.file, undefined, first.file.name);
+      await pushVideoToYouTube(firstVideo.id, selectedChannelId);
       await logActivity({
         type: 'video_uploaded',
         title: 'Auto-Publish Assistant uploaded a video',
-        description: metadata.title,
-        video_id: video.id,
+        description: first.title,
+        video_id: firstVideo.id,
       }).catch(() => {});
-      setWasScheduled(false);
+      setPublishProgress({ done: 1, total: metadataList.length });
+
+      let scheduled = 0;
+      if (bestTime) {
+        for (let i = 0; i < rest.length; i++) {
+          const meta = rest[i];
+          const video = await createVideo({
+            title: meta.title, description: meta.description, tags: meta.tags,
+            hashtags: meta.hashtags, privacy_status: privacyStatus, status: 'draft',
+          });
+          await uploadVideoFile(video.id, meta.file, undefined, meta.file.name);
+          const targetTime = computeNextTargetDate(bestTime.dayOfWeek, bestTime.hour, i + 1);
+          await scheduleAutoPublish(video.id, selectedChannelId, targetTime);
+          scheduled++;
+          setPublishProgress({ done: 1 + scheduled, total: metadataList.length });
+        }
+      }
+
+      setScheduledCount(scheduled);
+      setWasScheduled(rest.length > 0);
       setPublishStep('done');
     } catch (error) {
       setPublishError(error instanceof Error ? error.message : 'Publish failed');
@@ -158,18 +203,22 @@ export default function AIAgentPage() {
 
   const handleResetPublishAssistant = () => {
     setPublishStep('idle');
-    setVideoFile(null);
-    setMetadata(null);
+    setVideoFiles([]);
+    setMetadataList([]);
     setPrivacyStatus(null);
     setMadeForKids(null);
     setBestTime(null);
     setPublishError('');
+    setScheduledCount(0);
   };
 
-  function computeNextTargetDate(dayOfWeek: number, hour: number): Date {
+  // dayOffset: 0 = the next occurrence of the target day/hour, 1 = the day
+  // after that, 2 = the day after that, etc — used to spread a batch of
+  // videos one per day starting from the best-time slot.
+  function computeNextTargetDate(dayOfWeek: number, hour: number, dayOffset = 0): Date {
     const result = new Date();
     const daysUntil = (dayOfWeek - result.getDay() + 7) % 7 || 7;
-    result.setDate(result.getDate() + daysUntil);
+    result.setDate(result.getDate() + daysUntil + dayOffset);
     result.setHours(hour, 0, 0, 0);
     return result;
   }
