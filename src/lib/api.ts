@@ -499,12 +499,88 @@ export async function generateAIContentReal(title: string, format: 'short' | 'me
   return callAiGenerate({ mode: 'content', apiKey, title, format });
 }
 
+export async function generateVideoMetadata(fileName: string, niche?: string): Promise<{
+  title: string; description: string; tags: string[]; hashtags: string[];
+}> {
+  const settings = await getUserSettings();
+  const apiKey = settings?.gemini_api_key;
+  if (!apiKey) throw new Error('NO_API_KEY');
+
+  return callAiGenerate({ mode: 'video_metadata', apiKey, fileName, niche: niche || settings?.channel_niche || undefined });
+}
+
+// General best-time-to-post benchmarks (industry research, 2026), used as a
+// starting point until a channel has enough of its own YouTube Analytics
+// data. Times are in the viewer's local time.
+export interface BestTimeSuggestion {
+  label: string;
+  dayOfWeek: number; // 0 = Sunday ... 6 = Saturday
+  hour: number; // 24h local time
+  reason: string;
+}
+
+export function suggestBestPostTime(niche?: string): BestTimeSuggestion {
+  const n = (niche || '').toLowerCase();
+  const now = new Date();
+
+  // Niche-specific overrides based on general industry research
+  if (n.includes('game') || n.includes('gaming')) {
+    return nextOccurrence(4, 19, 'Gaming audiences are most active weekday evenings (around 7 PM)');
+  }
+  if (n.includes('finance') || n.includes('business') || n.includes('b2b')) {
+    return nextOccurrence(3, 12, 'Finance/B2B audiences engage most over the workday lunch window (~12 PM)');
+  }
+  if (n.includes('fitness') || n.includes('workout')) {
+    return nextOccurrence(3, 7, 'Fitness content performs best around typical morning workout times (~7 AM)');
+  }
+
+  // General benchmark: Wednesday/Thursday afternoon, 2-4 PM, posting a
+  // couple hours ahead of the evening engagement peak.
+  return nextOccurrence(4, 15, 'Thursday afternoon (around 3 PM) is a strong general benchmark — posting ahead of the evening engagement peak');
+
+  function nextOccurrence(targetDay: number, hour: number, reason: string): BestTimeSuggestion {
+    const result = new Date(now);
+    const daysUntil = (targetDay - now.getDay() + 7) % 7 || 7;
+    result.setDate(now.getDate() + daysUntil);
+    result.setHours(hour, 0, 0, 0);
+    return {
+      label: result.toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }),
+      dayOfWeek: targetDay,
+      hour,
+      reason,
+    };
+  }
+}
+
 export interface FactsContent {
   title: string;
   facts: { number: number; fact: string }[];
   social_caption: string;
   youtube_description: string;
   image_search_queries: string[];
+}
+
+// Schedules a video to be auto-published by the server-side cron worker
+// (auto-publish-worker), which runs independently of the browser. The
+// video file must already be uploaded to Storage before calling this.
+export async function scheduleAutoPublish(
+  videoId: string,
+  youtubeChannelId: string,
+  scheduledFor: Date
+): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not signed in');
+
+  const { error } = await supabase.from('scheduled_publishes').insert({
+    user_id: user.id,
+    video_id: videoId,
+    youtube_channel_id: youtubeChannelId,
+    scheduled_for: scheduledFor.toISOString(),
+    status: 'pending',
+  });
+  if (error) throw error;
+
+  await supabase.from('videos').update({ status: 'scheduled', scheduled_publish_at: scheduledFor.toISOString() }).eq('id', videoId);
 }
 
 export async function generateFactsContent(keyword: string): Promise<FactsContent> {
