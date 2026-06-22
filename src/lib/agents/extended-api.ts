@@ -16,22 +16,37 @@ import type {
   ShortsIntelligence, AgentState, IntelligenceDecision,
 } from '../../types';
 
+// Helper to log and format Supabase errors
+function formatError(operation: string, error: { message?: string; code?: string; details?: string } | null): Error {
+  if (!error) return new Error(`${operation}: Unknown error`);
+  console.error(`[${operation}] Supabase error:`, { code: error.code, message: error.message, details: error.details });
+  return new Error(`${operation}: ${error.message || 'Database error'}`);
+}
+
 // ============ TREND INTELLIGENCE ============
 
 export async function getTrends(limit = 50, trendType?: string): Promise<TrendIntelligence[]> {
-  let query = supabase
-    .from('trend_intelligence')
-    .select('*')
-    .order('opportunity_score', { ascending: false })
-    .limit(limit);
+  try {
+    let query = supabase
+      .from('trend_intelligence')
+      .select('*')
+      .order('opportunity_score', { ascending: false })
+      .limit(limit);
 
-  if (trendType) {
-    query = query.eq('trend_type', trendType);
+    if (trendType) {
+      query = query.eq('trend_type', trendType);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('[getTrends] Error:', error.message, error.code);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.error('[getTrends] Failed:', err);
+    return [];
   }
-
-  const { data, error } = await query;
-  if (error) throw error;
-  return data || [];
 }
 
 export async function createTrend(trend: Partial<TrendIntelligence>): Promise<TrendIntelligence> {
@@ -60,7 +75,7 @@ export async function createTrend(trend: Partial<TrendIntelligence>): Promise<Tr
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) throw formatError('createTrend', error);
   return data;
 }
 
@@ -69,21 +84,29 @@ export async function actionTrend(id: string): Promise<void> {
     .from('trend_intelligence')
     .update({ is_actioned: true })
     .eq('id', id);
-  if (error) throw error;
+  if (error) throw formatError('actionTrend', error);
 }
 
 // ============ COMPETITOR INTELLIGENCE ============
 
 export async function getCompetitors(limit = 20): Promise<CompetitorIntelligence[]> {
-  const { data, error } = await supabase
-    .from('competitor_intelligence')
-    .select('*')
-    .eq('is_tracking', true)
-    .order('created_at', { ascending: false })
-    .limit(limit);
+  try {
+    const { data, error } = await supabase
+      .from('competitor_intelligence')
+      .select('*')
+      .eq('is_tracking', true)
+      .order('created_at', { ascending: false })
+      .limit(limit);
 
-  if (error) throw error;
-  return data || [];
+    if (error) {
+      console.error('[getCompetitors] Error:', error.message, error.code);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.error('[getCompetitors] Failed:', err);
+    return [];
+  }
 }
 
 export async function addCompetitor(competitor: Partial<CompetitorIntelligence>): Promise<CompetitorIntelligence> {
@@ -118,7 +141,7 @@ export async function addCompetitor(competitor: Partial<CompetitorIntelligence>)
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) throw formatError('addCompetitor', error);
   return data;
 }
 
@@ -127,20 +150,28 @@ export async function removeCompetitor(id: string): Promise<void> {
     .from('competitor_intelligence')
     .delete()
     .eq('id', id);
-  if (error) throw error;
+  if (error) throw formatError('removeCompetitor', error);
 }
 
 // ============ THUMBNAIL INTELLIGENCE ============
 
 export async function getThumbnailAnalyses(limit = 50): Promise<ThumbnailIntelligence[]> {
-  const { data, error } = await supabase
-    .from('thumbnail_intelligence')
-    .select('*')
-    .order('analyzed_at', { ascending: false })
-    .limit(limit);
+  try {
+    const { data, error } = await supabase
+      .from('thumbnail_intelligence')
+      .select('*')
+      .order('analyzed_at', { ascending: false })
+      .limit(limit);
 
-  if (error) throw error;
-  return data || [];
+    if (error) {
+      console.error('[getThumbnailAnalyses] Error:', error.message, error.code);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.error('[getThumbnailAnalyses] Failed:', err);
+    return [];
+  }
 }
 
 export async function createThumbnailAnalysis(analysis: Partial<ThumbnailIntelligence>): Promise<ThumbnailIntelligence> {
@@ -170,21 +201,29 @@ export async function createThumbnailAnalysis(analysis: Partial<ThumbnailIntelli
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) throw formatError('createThumbnailAnalysis', error);
   return data;
 }
 
 // ============ SHORTS INTELLIGENCE ============
 
 export async function getShortsJobs(limit = 50): Promise<ShortsIntelligence[]> {
-  const { data, error } = await supabase
-    .from('shorts_intelligence')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(limit);
+  try {
+    const { data, error } = await supabase
+      .from('shorts_intelligence')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
 
-  if (error) throw error;
-  return data || [];
+    if (error) {
+      console.error('[getShortsJobs] Error:', error.message, error.code);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.error('[getShortsJobs] Failed:', err);
+    return [];
+  }
 }
 
 export async function createShortsJob(job: Partial<ShortsIntelligence>): Promise<ShortsIntelligence> {
@@ -210,7 +249,7 @@ export async function createShortsJob(job: Partial<ShortsIntelligence>): Promise
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) throw formatError('createShortsJob', error);
   return data;
 }
 
@@ -219,19 +258,27 @@ export async function updateShortsJob(id: string, updates: Partial<ShortsIntelli
     .from('shorts_intelligence')
     .update(updates)
     .eq('id', id);
-  if (error) throw error;
+  if (error) throw formatError('updateShortsJob', error);
 }
 
 // ============ AGENT STATES ============
 
 export async function getAgentStates(): Promise<AgentState[]> {
-  const { data, error } = await supabase
-    .from('agent_states')
-    .select('*')
-    .eq('is_active', true);
+  try {
+    const { data, error } = await supabase
+      .from('agent_states')
+      .select('*')
+      .eq('is_active', true);
 
-  if (error) throw error;
-  return data || [];
+    if (error) {
+      console.error('[getAgentStates] Error:', error.message, error.code);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.error('[getAgentStates] Failed:', err);
+    return [];
+  }
 }
 
 export async function updateAgentState(
@@ -262,7 +309,10 @@ export async function updateAgentState(
       onConflict: 'user_id,agent_name',
     });
 
-  if (error) throw error;
+  if (error) {
+    console.error('[updateAgentState] Error:', error.message, error.code);
+    throw formatError('updateAgentState', error);
+  }
 }
 
 export async function initializeAgentStates(): Promise<void> {
@@ -283,7 +333,7 @@ export async function initializeAgentStates(): Promise<void> {
   ];
 
   for (const agent of agents) {
-    await supabase
+    const { error } = await supabase
       .from('agent_states')
       .upsert({
         user_id: user.id,
@@ -294,21 +344,32 @@ export async function initializeAgentStates(): Promise<void> {
       }, {
         onConflict: 'user_id,agent_name',
       });
+    if (error) {
+      console.error('[initializeAgentStates] Failed for', agent.name, '-', error.message);
+    }
   }
 }
 
 // ============ INTELLIGENCE DECISIONS ============
 
 export async function getPendingDecisions(limit = 20): Promise<IntelligenceDecision[]> {
-  const { data, error } = await supabase
-    .from('intelligence_decisions')
-    .select('*')
-    .or('user_decision.eq.pending,user_decision.is.null')
-    .order('created_at', { ascending: false })
-    .limit(limit);
+  try {
+    const { data, error } = await supabase
+      .from('intelligence_decisions')
+      .select('*')
+      .or('user_decision.eq.pending,user_decision.is.null')
+      .order('created_at', { ascending: false })
+      .limit(limit);
 
-  if (error) throw error;
-  return data || [];
+    if (error) {
+      console.error('[getPendingDecisions] Error:', error.message, error.code);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.error('[getPendingDecisions] Failed:', err);
+    return [];
+  }
 }
 
 export async function createDecision(decision: Partial<IntelligenceDecision>): Promise<IntelligenceDecision> {
@@ -330,7 +391,7 @@ export async function createDecision(decision: Partial<IntelligenceDecision>): P
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) throw formatError('createDecision', error);
   return data;
 }
 
@@ -348,7 +409,7 @@ export async function resolveDecision(
     })
     .eq('id', id);
 
-  if (error) throw error;
+  if (error) throw formatError('resolveDecision', error);
 }
 
 // ============ INTELLIGENCE REPORT ============
@@ -363,24 +424,45 @@ export async function getIntelligenceReport(): Promise<{
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  const [decisions, trends, competitors, shorts, thumbnails] = await Promise.all([
-    supabase.from('intelligence_decisions').select('id', { count: 'exact', head: true })
-      .or('user_decision.eq.pending,user_decision.is.null'),
-    supabase.from('trend_intelligence').select('id', { count: 'exact', head: true })
-      .eq('is_actioned', false),
-    supabase.from('competitor_intelligence').select('id', { count: 'exact', head: true })
-      .eq('is_tracking', true),
-    supabase.from('shorts_intelligence').select('id', { count: 'exact', head: true })
-      .eq('processing_status', 'pending'),
-    supabase.from('thumbnail_intelligence').select('id', { count: 'exact', head: true })
-      .lt('overall_score', 50),
-  ]);
-
-  return {
-    pendingDecisions: decisions.count || 0,
-    activeTrends: trends.count || 0,
-    trackingCompetitors: competitors.count || 0,
-    pendingShortsJobs: shorts.count || 0,
-    thumbnailQueue: thumbnails.count || 0,
+  // Default empty report
+  const emptyReport = {
+    pendingDecisions: 0,
+    activeTrends: 0,
+    trackingCompetitors: 0,
+    pendingShortsJobs: 0,
+    thumbnailQueue: 0,
   };
+
+  try {
+    const [decisions, trends, competitors, shorts, thumbnails] = await Promise.all([
+      supabase.from('intelligence_decisions').select('id', { count: 'exact', head: true })
+        .or('user_decision.eq.pending,user_decision.is.null'),
+      supabase.from('trend_intelligence').select('id', { count: 'exact', head: true })
+        .eq('is_actioned', false),
+      supabase.from('competitor_intelligence').select('id', { count: 'exact', head: true })
+        .eq('is_tracking', true),
+      supabase.from('shorts_intelligence').select('id', { count: 'exact', head: true })
+        .eq('processing_status', 'pending'),
+      supabase.from('thumbnail_intelligence').select('id', { count: 'exact', head: true })
+        .lt('overall_score', 50),
+    ]);
+
+    // Log any errors but continue with partial data
+    if (decisions.error) console.error('[getIntelligenceReport] decisions error:', decisions.error.message);
+    if (trends.error) console.error('[getIntelligenceReport] trends error:', trends.error.message);
+    if (competitors.error) console.error('[getIntelligenceReport] competitors error:', competitors.error.message);
+    if (shorts.error) console.error('[getIntelligenceReport] shorts error:', shorts.error.message);
+    if (thumbnails.error) console.error('[getIntelligenceReport] thumbnails error:', thumbnails.error.message);
+
+    return {
+      pendingDecisions: decisions.count || 0,
+      activeTrends: trends.count || 0,
+      trackingCompetitors: competitors.count || 0,
+      pendingShortsJobs: shorts.count || 0,
+      thumbnailQueue: thumbnails.count || 0,
+    };
+  } catch (err) {
+    console.error('[getIntelligenceReport] Failed:', err);
+    return emptyReport;
+  }
 }

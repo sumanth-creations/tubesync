@@ -106,8 +106,18 @@ export default function AIHomePage() {
 
       setOrbState('listening');
     } catch (error) {
-      console.error('Failed to initialize home:', error);
+      console.error('[AIHome] Failed to initialize:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error initializing AI home';
+      console.error('[AIHome] Error details:', errorMsg);
       setOrbState('idle');
+      // Still show the page, just without data
+      setReport({
+        pendingDecisions: 0,
+        activeTrends: 0,
+        trackingCompetitors: 0,
+        pendingShortsJobs: 0,
+        thumbnailQueue: 0,
+      });
     }
   };
 
@@ -174,9 +184,14 @@ export default function AIHomePage() {
       setConversation(prev => [...prev, { role: 'assistant', content: response.content }]);
       setOrbState('listening');
     } catch (error) {
+      console.error('[AIHome] Chat error:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      const isNoKey = errorMsg === 'NO_API_KEY';
       setConversation(prev => [...prev, {
         role: 'assistant',
-        content: 'I encountered an error. Please try again.'
+        content: isNoKey
+          ? 'I need a Gemini API key to assist you. Please add your free key in Settings.'
+          : `I encountered an error: ${errorMsg}. Please try again.`
       }]);
       setOrbState('idle');
     } finally {
