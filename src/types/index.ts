@@ -180,6 +180,199 @@ export interface AppUser {
   full_name?: string;
 }
 
+// ============ AI AGENT SYSTEM TYPES ============
+
+export interface AgentMemory {
+  id: string;
+  user_id: string;
+  memory_type: 'fact' | 'preference' | 'pattern' | 'insight' | 'feedback' | 'correction';
+  category: string;
+  key: string;
+  value: string;
+  confidence: number;
+  source: 'user_input' | 'ai_inferred' | 'analytics' | 'feedback' | 'external' | null;
+  video_id: string | null;
+  context: Record<string, unknown> | null;
+  access_count: number;
+  last_accessed_at: string | null;
+  expires_at: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentSession {
+  id: string;
+  user_id: string;
+  session_type: 'chat' | 'task' | 'workflow' | 'automation';
+  title: string | null;
+  summary: string | null;
+  context: Record<string, unknown> | null;
+  metadata: Record<string, unknown> | null;
+  is_active: boolean;
+  started_at: string;
+  ended_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentMessage {
+  id: string;
+  session_id: string | null;
+  user_id: string;
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string;
+  tool_name: string | null;
+  tool_result: Record<string, unknown> | null;
+  tokens_used: number | null;
+  model_used: string | null;
+  latency_ms: number | null;
+  metadata: Record<string, unknown> | null;
+  parent_message_id: string | null;
+  created_at: string;
+}
+
+export interface AgentKnowledge {
+  id: string;
+  user_id: string;
+  knowledge_type: 'best_practice' | 'template' | 'workflow' | 'optimization' | 'lesson_learned';
+  domain: string;
+  title: string;
+  content: string;
+  tags: string[];
+  effectiveness_score: number | null;
+  usage_count: number;
+  last_used_at: string | null;
+  source_session_id: string | null;
+  is_verified: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentToolLog {
+  id: string;
+  user_id: string;
+  session_id: string | null;
+  message_id: string | null;
+  tool_name: string;
+  tool_action: string;
+  input_data: Record<string, unknown> | null;
+  output_data: Record<string, unknown> | null;
+  success: boolean;
+  error_message: string | null;
+  duration_ms: number | null;
+  created_at: string;
+}
+
+export interface SEOHistory {
+  id: string;
+  user_id: string;
+  video_id: string | null;
+  keyword: string;
+  position: number | null;
+  impressions: number;
+  clicks: number;
+  ctr: number | null;
+  average_position: number | null;
+  search_appearance_type: string | null;
+  country: string | null;
+  date: string;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface ChannelHistory {
+  id: string;
+  user_id: string;
+  channel_id: string | null;
+  snapshot_date: string;
+  subscriber_count: number | null;
+  view_count: number | null;
+  video_count: number | null;
+  subscriber_change: number;
+  view_change: number;
+  engagement_rate: number | null;
+  avg_views_per_video: number | null;
+  top_video_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface GrowthIntelligence {
+  id: string;
+  user_id: string;
+  channel_id: string | null;
+  insight_type: 'prediction' | 'recommendation' | 'anomaly' | 'opportunity' | 'benchmark';
+  category: string;
+  title: string;
+  description: string;
+  metric_name: string | null;
+  current_value: number | null;
+  predicted_value: number | null;
+  confidence: number | null;
+  time_frame: string | null;
+  action_items: Record<string, unknown>[] | null;
+  related_videos: string[];
+  priority: number;
+  is_actioned: boolean;
+  actioned_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CopyrightReport {
+  id: string;
+  user_id: string;
+  video_id: string | null;
+  youtube_video_id: string | null;
+  report_type: 'claim' | 'takedown' | 'strike' | 'warning' | 'content_id_match' | 'manual_check';
+  claimant: string | null;
+  claim_type: string | null;
+  asset_title: string | null;
+  status: 'active' | 'resolved' | 'disputed' | 'appealed' | 'expired';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  affected_content: string | null;
+  restrictions: Record<string, unknown> | null;
+  resolution_notes: string | null;
+  detected_at: string;
+  resolved_at: string | null;
+  expires_at: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScheduledPublish {
+  id: string;
+  user_id: string;
+  video_id: string | null;
+  youtube_channel_id: string;
+  scheduled_for: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  priority: number;
+  retry_count: number;
+  max_retries: number;
+  error_message: string | null;
+  metadata: Record<string, unknown> | null;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserSettings {
+  id: string;
+  user_id: string;
+  gemini_api_key: string | null;
+  channel_niche: string | null;
+  ai_preferences: Record<string, unknown>;
+  notification_preferences: Record<string, unknown>;
+  automation_enabled: boolean;
+  learning_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -227,6 +420,61 @@ export interface Database {
         Row: Short;
         Insert: Partial<Short>;
         Update: Partial<Short>;
+      };
+      agent_memory: {
+        Row: AgentMemory;
+        Insert: Partial<AgentMemory>;
+        Update: Partial<AgentMemory>;
+      };
+      agent_sessions: {
+        Row: AgentSession;
+        Insert: Partial<AgentSession>;
+        Update: Partial<AgentSession>;
+      };
+      agent_messages: {
+        Row: AgentMessage;
+        Insert: Partial<AgentMessage>;
+        Update: Partial<AgentMessage>;
+      };
+      agent_knowledge: {
+        Row: AgentKnowledge;
+        Insert: Partial<AgentKnowledge>;
+        Update: Partial<AgentKnowledge>;
+      };
+      agent_tool_logs: {
+        Row: AgentToolLog;
+        Insert: Partial<AgentToolLog>;
+        Update: Partial<AgentToolLog>;
+      };
+      seo_history: {
+        Row: SEOHistory;
+        Insert: Partial<SEOHistory>;
+        Update: Partial<SEOHistory>;
+      };
+      channel_history: {
+        Row: ChannelHistory;
+        Insert: Partial<ChannelHistory>;
+        Update: Partial<ChannelHistory>;
+      };
+      growth_intelligence: {
+        Row: GrowthIntelligence;
+        Insert: Partial<GrowthIntelligence>;
+        Update: Partial<GrowthIntelligence>;
+      };
+      copyright_reports: {
+        Row: CopyrightReport;
+        Insert: Partial<CopyrightReport>;
+        Update: Partial<CopyrightReport>;
+      };
+      scheduled_publishes: {
+        Row: ScheduledPublish;
+        Insert: Partial<ScheduledPublish>;
+        Update: Partial<ScheduledPublish>;
+      };
+      user_settings: {
+        Row: UserSettings;
+        Insert: Partial<UserSettings>;
+        Update: Partial<UserSettings>;
       };
     };
   };
