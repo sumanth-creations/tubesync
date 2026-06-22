@@ -465,27 +465,123 @@ export async function saveChannelNiche(niche: string): Promise<void> {
   if (error) throw error;
 }
 
-async function callAiGenerate(payload: Record<string, unknown>): Promise<any> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error('Not signed in');
+async function callAiGenerate(
+  mode: 'content' | 'video_metadata' | 'facts' | 'chat',
+  apiKey: string,
+  params: Record<string, unknown>
+): Promise<any> {
+  // Call Gemini API directly instead of non-existent edge function
+  const model = 'gemini-2.0-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-generate`, {
+  let systemPrompt = '';
+  let userPrompt = '';
+
+  switch (mode) {
+    case 'content':
+      systemPrompt = 'You are a YouTube content strategist. Create viral-worthy content suggestions.';
+      userPrompt = `Generate YouTube content for: "${params.title}"
+Format: ${params.format || 'short'}
+
+Provide as JSON:
+{
+  "titles": ["title1", "title2", ...],
+  "descriptions": ["desc1", ...],
+  "tags": ["tag1", ...],
+  "hashtags": ["#tag1", ...],
+  "seo_keywords": ["kw1", ...],
+  "thumbnail_ideas": ["idea1", ...],
+  "scripts": ["script1", ...],
+  "video_ideas": ["idea1", ...],
+  "trending_topics": ["topic1", ...]
+}`;
+      break;
+
+    case 'video_metadata':
+      systemPrompt = 'You are a YouTube SEO expert. Return ONLY valid JSON.';
+      userPrompt = `Generate YouTube video metadata for filename: "${params.fileName}"${params.niche ? ` in niche: "${params.niche}"` : ''}
+
+Return ONLY this JSON format:
+{
+  "title": "A compelling click-worthy title under 60 chars",
+  "description": "SEO-optimized description 150-300 chars",
+  "tags": ["tag1", "tag2", ...10 relevant tags],
+  "hashtags": ["#hashtag1", ...5 hashtags]
+}`;
+      break;
+
+    case 'facts':
+      systemPrompt = 'You are a content researcher. Return ONLY valid JSON.';
+      userPrompt = `Generate interesting facts content for keyword: "${params.keyword}"
+
+Return ONLY this JSON format:
+{
+  "title": "Compelling title about the keyword",
+  "facts": [{"number": 1, "fact": "Interesting fact"}, ...5 facts],
+  "social_caption": "Short engaging caption",
+  "youtube_description": "YouTube description",
+  "image_search_queries": ["query1", ...3 queries]
+}`;
+      break;
+
+    case 'chat':
+      systemPrompt = 'You are a helpful YouTube assistant. Be concise and actionable.';
+      const history = (params.history as Array<{role: string; content: string}>) || [];
+      const historyText = history.map(m => `${m.role}: ${m.content}`).join('\n');
+      userPrompt = `Conversation:\n${historyText}\n\nUser: ${params.message}\n\nReply as JSON: {"reply": "your response"}`;
+      break;
+  }
+
+  const body = {
+    contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+    systemInstruction: { parts: [{ text: systemPrompt }] },
+    generationConfig: { maxOutputTokens: 2048, temperature: 0.7 },
+  };
+
+  console.log('[AI Generate] Request:', { mode, model, url: url.replace(apiKey, 'REDACTED') });
+
+  const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session.access_token}`,
-    },
-    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
   });
 
-  const body = await res.json();
-  if (!res.ok) {
-    if (body.error === 'no_api_key') {
-      throw new Error('NO_API_KEY');
+  const responseText = await response.text();
+  console.log('[AI Generate] Response status:', response.status);
+  console.log('[AI Generate] Response body:', responseText.substring(0, 500));
+
+  if (!response.ok) {
+    let errorMsg = `AI API error: ${response.status}`;
+    try {
+      const errorJson = JSON.parse(responseText);
+      errorMsg = errorJson.error?.message || errorMsg;
+    } catch {
+      errorMsg = responseText.substring(0, 200) || errorMsg;
     }
-    throw new Error(body.error || body.message || 'AI generation failed');
+    throw new Error(errorMsg);
   }
-  return body;
+
+  let data;
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    throw new Error('Invalid JSON response from AI');
+  }
+
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  console.log('[AI Generate] Extracted text:', text.substring(0, 300));
+
+  // Parse JSON from response
+  try {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    throw new Error('No JSON found in response');
+  } catch (parseError) {
+    console.error('[AI Generate] JSON parse error:', parseError);
+    throw new Error('Failed to parse AI response as JSON');
+  }
 }
 
 // Real AI content generation via the user's own Gemini key.
@@ -496,7 +592,7 @@ export async function generateAIContentReal(title: string, format: 'short' | 'me
   const apiKey = settings?.gemini_api_key;
   if (!apiKey) throw new Error('NO_API_KEY');
 
-  return callAiGenerate({ mode: 'content', apiKey, title, format });
+  return callAiGenerate('content', apiKey, { title, format });
 }
 
 export async function generateVideoMetadata(fileName: string, niche?: string): Promise<{
@@ -506,7 +602,7 @@ export async function generateVideoMetadata(fileName: string, niche?: string): P
   const apiKey = settings?.gemini_api_key;
   if (!apiKey) throw new Error('NO_API_KEY');
 
-  return callAiGenerate({ mode: 'video_metadata', apiKey, fileName, niche: niche || settings?.channel_niche || undefined });
+  return callAiGenerate('video_metadata', apiKey, { fileName, niche: niche || settings?.channel_niche || undefined });
 }
 
 // General best-time-to-post benchmarks (industry research, 2026), used as a
@@ -588,7 +684,7 @@ export async function generateFactsContent(keyword: string): Promise<FactsConten
   const apiKey = settings?.gemini_api_key;
   if (!apiKey) throw new Error('NO_API_KEY');
 
-  return callAiGenerate({ mode: 'facts', apiKey, keyword });
+  return callAiGenerate('facts', apiKey, { keyword });
 }
 
 export async function chatWithAgent(
@@ -599,6 +695,6 @@ export async function chatWithAgent(
   const apiKey = settings?.gemini_api_key;
   if (!apiKey) throw new Error('NO_API_KEY');
 
-  const result = await callAiGenerate({ mode: 'chat', apiKey, message, history });
+  const result = await callAiGenerate('chat', apiKey, { message, history });
   return result.reply;
 }
