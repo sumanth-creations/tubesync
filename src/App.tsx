@@ -10,6 +10,8 @@ import AuthCallback from './components/Auth/AuthCallback';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 import Layout from './components/Layout/Layout';
 
+// Pages
+const AIHomePage = lazy(() => import('./pages/AIHomePage'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const GeneratePage = lazy(() => import('./pages/GeneratePage'));
 const UploadPage = lazy(() => import('./pages/UploadPage'));
@@ -20,6 +22,7 @@ const ShortsPage = lazy(() => import('./pages/ShortsPage'));
 const CalendarPage = lazy(() => import('./pages/CalendarPage'));
 const SEOAnalyzer = lazy(() => import('./pages/SEOAnalyzer'));
 const AIAgentPage = lazy(() => import('./pages/AIAgentPage'));
+const AgentCommandCenter = lazy(() => import('./pages/AgentCommandCenter'));
 
 function PageLoader() {
   return (
@@ -37,7 +40,8 @@ function RootRedirect() {
   if (code) {
     return <Navigate to={`/settings${window.location.search}`} replace />;
   }
-  return <Navigate to="/dashboard" replace />;
+  // AI-First: Default route is now the AI Home page
+  return <Navigate to="/ai-home" replace />;
 }
 
 function AppRoutes() {
@@ -50,6 +54,8 @@ function AppRoutes() {
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route path="/" element={<RootRedirect />} />
+          <Route path="/ai-home" element={<Suspense fallback={<PageLoader />}><AIHomePage /></Suspense>} />
+          <Route path="/command-center" element={<Suspense fallback={<PageLoader />}><AgentCommandCenter /></Suspense>} />
           <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
           <Route path="/agent" element={<Suspense fallback={<PageLoader />}><AIAgentPage /></Suspense>} />
           <Route path="/generate" element={<Suspense fallback={<PageLoader />}><GeneratePage /></Suspense>} />

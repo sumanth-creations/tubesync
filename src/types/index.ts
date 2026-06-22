@@ -373,6 +373,183 @@ export interface UserSettings {
   updated_at: string;
 }
 
+// ============ PHASE 2 AGENT SYSTEM TYPES ============
+
+export interface TrendIntelligence {
+  id: string;
+  user_id: string;
+  topic: string;
+  category: string;
+  trend_type: 'rising' | 'viral' | 'emerging' | 'seasonal' | 'evergreen';
+  platform: string;
+  velocity: number;
+  volume: number;
+  growth_rate: number;
+  peak_time: string | null;
+  related_keywords: string[];
+  suggested_angles: string[];
+  competition_level: 'low' | 'medium' | 'high' | null;
+  opportunity_score: number;
+  detected_at: string;
+  expires_at: string | null;
+  is_actioned: boolean;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CompetitorIntelligence {
+  id: string;
+  user_id: string;
+  competitor_channel_id: string;
+  competitor_title: string;
+  competitor_thumbnail: string | null;
+  competitor_subscribers: number;
+  competitor_views: number;
+  competitor_video_count: number;
+  niche: string | null;
+  content_patterns: Record<string, unknown> | null;
+  upload_frequency: string | null;
+  avg_video_performance: number | null;
+  top_videos: Record<string, unknown>[] | null;
+  growth_trend: 'growing' | 'stable' | 'declining' | null;
+  strengths: string[];
+  weaknesses: string[];
+  content_gaps: string[];
+  opportunity_areas: string[];
+  last_analyzed: string | null;
+  is_tracking: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ThumbnailIntelligence {
+  id: string;
+  user_id: string;
+  video_id: string | null;
+  thumbnail_url: string | null;
+  thumbnail_file_path: string | null;
+  overall_score: number;
+  ctr_prediction: number;
+  engagement_potential: number;
+  clarity_score: number;
+  eye_catching_score: number;
+  text_readability_score: number;
+  color_harmony_score: number;
+  face_detection: boolean;
+  emotion_detected: string | null;
+  improvements_suggested: Record<string, unknown>[] | null;
+  a_b_test_variants: Record<string, unknown>[] | null;
+  winning_variant: string | null;
+  model_used: string | null;
+  analyzed_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ShortsIntelligence {
+  id: string;
+  user_id: string;
+  source_video_id: string | null;
+  source_youtube_url: string | null;
+  transcript: string | null;
+  detected_moments: Record<string, unknown>[] | null;
+  selected_moments: Record<string, unknown>[] | null;
+  generated_short_count: number;
+  short_ids: string[];
+  hook_scores: Record<string, unknown> | null;
+  viral_potential: number;
+  processing_status: 'pending' | 'transcribing' | 'analyzing' | 'generating' | 'completed' | 'failed';
+  error_message: string | null;
+  metadata: Record<string, unknown> | null;
+  processed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentState {
+  id: string;
+  user_id: string;
+  agent_name: string;
+  agent_type: 'youtube_intelligence' | 'trend_research' | 'competitor_intel' | 'thumbnail_intel' | 'shorts_factory' | 'seo_analyzer' | 'channel_history' | 'growth_hub' | 'copyright_monitor' | 'smart_queue';
+  status: 'idle' | 'thinking' | 'listening' | 'researching' | 'learning' | 'processing' | 'error';
+  current_task: string | null;
+  last_activity: string | null;
+  activity_timestamp: string | null;
+  tasks_completed: number;
+  tasks_failed: number;
+  last_error: string | null;
+  uptime_seconds: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IntelligenceDecision {
+  id: string;
+  user_id: string;
+  decision_type: 'seo_approval' | 'upload_approval' | 'thumbnail_approval' | 'shorts_approval' | 'growth_recommendation' | 'content_strategy';
+  context: Record<string, unknown>;
+  proposed_action: Record<string, unknown>;
+  agent_recommendation: string;
+  confidence: number;
+  reasoning: string | null;
+  user_decision: 'approved' | 'rejected' | 'modified' | 'pending' | null;
+  user_feedback: string | null;
+  outcome_data: Record<string, unknown> | null;
+  is_actionable: boolean;
+  expires_at: string | null;
+  decided_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ViralMoment {
+  startTime: number;
+  endTime: number;
+  hookType: string;
+  viralityScore: number;
+  reason: string;
+  suggestedTitle: string;
+}
+
+export interface DetectedTrend {
+  topic: string;
+  velocity: number;
+  volume: number;
+  platform: string;
+  category: string;
+  opportunityScore: number;
+}
+
+export interface ThumbnailScore {
+  overall: number;
+  ctr: number;
+  clarity: number;
+  eyeCatching: number;
+  textReadability: number;
+  colorHarmony: number;
+}
+
+export interface AgentStatusReport {
+  agentName: string;
+  agentType: string;
+  status: AgentState['status'];
+  currentTask: string | null;
+  tasksCompleted: number;
+  lastActivity: string | null;
+  isActive: boolean;
+}
+
+export interface IntelligenceReport {
+  pendingDecisions: number;
+  activeTrends: number;
+  trackingCompetitors: number;
+  pendingShorts: number;
+  thumbnailQueue: number;
+  overallHealth: number;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -475,6 +652,36 @@ export interface Database {
         Row: UserSettings;
         Insert: Partial<UserSettings>;
         Update: Partial<UserSettings>;
+      };
+      trend_intelligence: {
+        Row: TrendIntelligence;
+        Insert: Partial<TrendIntelligence>;
+        Update: Partial<TrendIntelligence>;
+      };
+      competitor_intelligence: {
+        Row: CompetitorIntelligence;
+        Insert: Partial<CompetitorIntelligence>;
+        Update: Partial<CompetitorIntelligence>;
+      };
+      thumbnail_intelligence: {
+        Row: ThumbnailIntelligence;
+        Insert: Partial<ThumbnailIntelligence>;
+        Update: Partial<ThumbnailIntelligence>;
+      };
+      shorts_intelligence: {
+        Row: ShortsIntelligence;
+        Insert: Partial<ShortsIntelligence>;
+        Update: Partial<ShortsIntelligence>;
+      };
+      agent_states: {
+        Row: AgentState;
+        Insert: Partial<AgentState>;
+        Update: Partial<AgentState>;
+      };
+      intelligence_decisions: {
+        Row: IntelligenceDecision;
+        Insert: Partial<IntelligenceDecision>;
+        Update: Partial<IntelligenceDecision>;
       };
     };
   };
