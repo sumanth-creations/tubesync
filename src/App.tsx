@@ -8,10 +8,13 @@ import LoginPage from './components/Auth/LoginPage';
 import SignupPage from './components/Auth/SignupPage';
 import AuthCallback from './components/Auth/AuthCallback';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
-import Layout from './components/Layout/Layout';
 
-// Pages
-const AIHomePage = lazy(() => import('./pages/AIHomePage'));
+// Layouts
+import Layout from './components/Layout/Layout';
+import AIExperienceLayout from './components/Layout/AIExperienceLayout';
+
+// Lazy-loaded pages
+const AIHome = lazy(() => import('./pages/AIHome'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const GeneratePage = lazy(() => import('./pages/GeneratePage'));
 const UploadPage = lazy(() => import('./pages/UploadPage'));
@@ -26,10 +29,10 @@ const AgentCommandCenter = lazy(() => import('./pages/AgentCommandCenter'));
 
 function PageLoader() {
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
       <div className="text-center">
-        <div className="w-12 h-12 border-4 border-red-200 border-t-red-600 rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-slate-600 font-medium">Loading page...</p>
+        <div className="w-12 h-12 border-4 border-cyan-200 border-t-cyan-600 rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-slate-400 font-medium">Loading...</p>
       </div>
     </div>
   );
@@ -40,8 +43,8 @@ function RootRedirect() {
   if (code) {
     return <Navigate to={`/settings${window.location.search}`} replace />;
   }
-  // AI-First: Default route is now the AI Home page
-  return <Navigate to="/ai-home" replace />;
+  // AI-First: Default route is the AI Home page
+  return <Navigate to="/" replace />;
 }
 
 function AppRoutes() {
@@ -49,15 +52,22 @@ function AppRoutes() {
     <>
       <Toaster position="top-right" />
       <Routes>
+        {/* Auth routes - no layout */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
+
+        {/* AI Experience routes - full screen AI conversation */}
+        <Route element={<ProtectedRoute><AIExperienceLayout /></ProtectedRoute>}>
+          <Route path="/" element={<Suspense fallback={<PageLoader />}><AIHome /></Suspense>} />
+          <Route path="/ai-home" element={<Suspense fallback={<PageLoader />}><AIHome /></Suspense>} />
+        </Route>
+
+        {/* Traditional layout routes - for secondary views */}
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-          <Route path="/" element={<RootRedirect />} />
-          <Route path="/ai-home" element={<Suspense fallback={<PageLoader />}><AIHomePage /></Suspense>} />
-          <Route path="/command-center" element={<Suspense fallback={<PageLoader />}><AgentCommandCenter /></Suspense>} />
           <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
           <Route path="/agent" element={<Suspense fallback={<PageLoader />}><AIAgentPage /></Suspense>} />
+          <Route path="/command-center" element={<Suspense fallback={<PageLoader />}><AgentCommandCenter /></Suspense>} />
           <Route path="/generate" element={<Suspense fallback={<PageLoader />}><GeneratePage /></Suspense>} />
           <Route path="/upload" element={<Suspense fallback={<PageLoader />}><UploadPage /></Suspense>} />
           <Route path="/videos" element={<Suspense fallback={<PageLoader />}><VideosPage /></Suspense>} />
@@ -67,7 +77,9 @@ function AppRoutes() {
           <Route path="/calendar" element={<Suspense fallback={<PageLoader />}><CalendarPage /></Suspense>} />
           <Route path="/seo" element={<Suspense fallback={<PageLoader />}><SEOAnalyzer /></Suspense>} />
         </Route>
-        <Route path="*" element={<Navigate to="/login" replace />} />
+
+        {/* Catch-all redirect */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
   );
@@ -82,10 +94,10 @@ export default function App() {
 
   if (!ready) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-red-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-white font-medium">Initializing...</p>
+          <div className="w-16 h-16 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-400 font-light">Initializing AI...</p>
         </div>
       </div>
     );
