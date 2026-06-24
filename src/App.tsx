@@ -1,31 +1,8 @@
-import { Suspense, lazy, useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
 import { Toaster } from 'react-hot-toast';
-import ErrorBoundary from './components/ErrorBoundary';
-
-import LoginPage from './components/Auth/LoginPage';
-import SignupPage from './components/Auth/SignupPage';
-import AuthCallback from './components/Auth/AuthCallback';
-import ProtectedRoute from './components/Auth/ProtectedRoute';
-
-// Layouts
-import Layout from './components/Layout/Layout';
-import AIExperienceLayout from './components/Layout/AIExperienceLayout';
-
-// Lazy-loaded pages
-const AIHome = lazy(() => import('./pages/AIHome'));
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const GeneratePage = lazy(() => import('./pages/GeneratePage'));
-const UploadPage = lazy(() => import('./pages/UploadPage'));
-const VideosPage = lazy(() => import('./pages/VideosPage'));
-const ActivityPage = lazy(() => import('./pages/ActivityPage'));
-const SettingsPage = lazy(() => import('./pages/SettingsPage'));
-const ShortsPage = lazy(() => import('./pages/ShortsPage'));
-const CalendarPage = lazy(() => import('./pages/CalendarPage'));
-const SEOAnalyzer = lazy(() => import('./pages/SEOAnalyzer'));
-const AIAgentPage = lazy(() => import('./pages/AIAgentPage'));
-const AgentCommandCenter = lazy(() => import('./pages/AgentCommandCenter'));
+import { supabase } from './lib/supabase';
+import AIHome from './pages/AIHome';
 
 function PageLoader() {
   return (
@@ -38,50 +15,86 @@ function PageLoader() {
   );
 }
 
-function RootRedirect() {
-  const code = new URLSearchParams(window.location.search).get('code');
-  if (code) {
-    return <Navigate to={`/settings${window.location.search}`} replace />;
-  }
-  // AI-First: Default route is the AI Home page
-  return <Navigate to="/" replace />;
+function LoginPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    } catch (err) {
+      console.error('Login error:', err);
+      alert('Login failed. Please check your credentials.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+      <div className="bg-slate-900 rounded-2xl p-8 w-full max-w-md border border-slate-800">
+        <h1 className="text-2xl font-bold text-white mb-6 text-center">
+          TubeSync <span className="text-cyan-400">Intelligence</span>
+        </h1>
+        <form onSubmit={handleLogin} className="space-y-4">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            className="w-full px-4 py-3 bg-slate-800 rounded-lg text-white border border-slate-700 focus:border-cyan-500 focus:outline-none"
+          />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            className="w-full px-4 py-3 bg-slate-800 rounded-lg text-white border border-slate-700 focus:border-cyan-500 focus:outline-none"
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 rounded-lg font-medium text-white disabled:opacity-50"
+          >
+            {loading ? 'Signing in...' : 'Sign In'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 function AppRoutes() {
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user);
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (loading) {
+    return <PageLoader />;
+  }
+
   return (
-    <>
-      <Toaster position="top-right" />
-      <Routes>
-        {/* Auth routes - no layout */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignupPage />} />
-        <Route path="/auth/callback" element={<AuthCallback />} />
-
-        {/* AI Experience routes - full screen AI conversation */}
-        <Route element={<ProtectedRoute><AIExperienceLayout /></ProtectedRoute>}>
-          <Route path="/" element={<Suspense fallback={<PageLoader />}><AIHome /></Suspense>} />
-          <Route path="/ai-home" element={<Suspense fallback={<PageLoader />}><AIHome /></Suspense>} />
-        </Route>
-
-        {/* Traditional layout routes - for secondary views */}
-        <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-          <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
-          <Route path="/agent" element={<Suspense fallback={<PageLoader />}><AIAgentPage /></Suspense>} />
-          <Route path="/command-center" element={<Suspense fallback={<PageLoader />}><AgentCommandCenter /></Suspense>} />
-          <Route path="/generate" element={<Suspense fallback={<PageLoader />}><GeneratePage /></Suspense>} />
-          <Route path="/upload" element={<Suspense fallback={<PageLoader />}><UploadPage /></Suspense>} />
-          <Route path="/videos" element={<Suspense fallback={<PageLoader />}><VideosPage /></Suspense>} />
-          <Route path="/activity" element={<Suspense fallback={<PageLoader />}><ActivityPage /></Suspense>} />
-          <Route path="/settings" element={<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>} />
-          <Route path="/shorts" element={<Suspense fallback={<PageLoader />}><ShortsPage /></Suspense>} />
-          <Route path="/calendar" element={<Suspense fallback={<PageLoader />}><CalendarPage /></Suspense>} />
-          <Route path="/seo" element={<Suspense fallback={<PageLoader />}><SEOAnalyzer /></Suspense>} />
-        </Route>
-
-        {/* Catch-all redirect */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </>
+    <Routes>
+      <Route path="/login" element={user ? <Navigate to="/" /> : <LoginPage />} />
+      <Route path="/" element={user ? <AIHome /> : <Navigate to="/login" />} />
+      <Route path="*" element={<Navigate to="/" />} />
+    </Routes>
   );
 }
 
@@ -93,23 +106,13 @@ export default function App() {
   }, []);
 
   if (!ready) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-slate-400 font-light">Initializing AI...</p>
-        </div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <HashRouter>
-          <AppRoutes />
-        </HashRouter>
-      </AuthProvider>
-    </ErrorBoundary>
+    <HashRouter>
+      <Toaster position="top-right" />
+      <AppRoutes />
+    </HashRouter>
   );
 }
