@@ -259,7 +259,7 @@ Keep it concise and actionable.`,
     return recommendations.sort((a, b) => a.priority - b.priority);
   }
 
-  private async analyzeBestTiming(channelHistory: import('./api').ChannelHistory[]): Promise<TimingInsight[]> {
+  private async analyzeBestTiming(channelHistory: import('../../types').ChannelHistory[]): Promise<TimingInsight[]> {
     const timingInsights: TimingInsight[] = [];
 
     const dayScores: Record<number, number[]> = {};

@@ -249,7 +249,7 @@ export class IntelligenceCore {
 export const intelligenceCore = new IntelligenceCore();
 
 export async function getAIClient(): Promise<IntelligenceCore> {
-  const { getUserSettings } = await import('./api');
+  const { getUserSettings } = await import('../api');
   const settings = await getUserSettings();
 
   if (settings?.gemini_api_key) {

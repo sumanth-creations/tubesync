@@ -107,7 +107,7 @@ export default function AgentCommandCenter() {
         getThumbnailAnalyses(10),
       ]);
 
-      setAgents(agentStates);
+      setAgents(agentStates as any);
       setReport(systemReport);
 
       // Build activity feed from recent events

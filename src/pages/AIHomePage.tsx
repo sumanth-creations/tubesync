@@ -98,7 +98,7 @@ export default function AIHomePage() {
 
       // Get agent statuses
       const statuses = await getAgentStates();
-      setAgentStatuses(statuses);
+      setAgentStatuses(statuses as any);
 
       // Generate startup recommendations based on report
       const startupRecs = generateStartupRecommendations(systemReport);

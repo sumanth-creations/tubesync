@@ -160,7 +160,7 @@ export async function createSession(
       .from('agent_sessions')
       .insert({
         user_id: user.id,
-        session_type,
+        session_type: sessionType,
         title: title || `Session ${new Date().toLocaleDateString()}`,
         context: context || {},
         is_active: true,

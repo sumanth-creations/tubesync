@@ -215,9 +215,7 @@ export class AgentOrchestrator {
     }
 
     await learningEngine.logInteraction('assistant', responseContent, {
-      toolResult: { intent, toolCalls },
-      metadata,
-    });
+      toolResult: { intent, toolCalls }});
 
     this.context.history.push({ role: 'user', content: message });
     this.context.history.push({ role: 'assistant', content: responseContent });
@@ -228,9 +226,7 @@ export class AgentOrchestrator {
       content: responseContent,
       intent,
       toolCalls,
-      suggestions,
-      metadata,
-    };
+      suggestions};
   }
 
   private detectIntent(message: string): AgentIntent {
@@ -481,3 +477,4 @@ Provide:
 }
 
 export const agentOrchestrator = new AgentOrchestrator();
+
