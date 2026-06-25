@@ -3,7 +3,7 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { supabase } from './lib/supabase';
 import AIHome from './pages/AIHome';
-
+import SettingsPage from './pages/SettingsPage';
 function PageLoader() {
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -91,10 +91,11 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to="/" /> : <LoginPage />} />
-      <Route path="/" element={user ? <AIHome /> : <Navigate to="/login" />} />
-      <Route path="*" element={<Navigate to="/" />} />
-    </Routes>
+  <Route path="/login" element={user ? <Navigate to="/" /> : <LoginPage />} />
+  <Route path="/" element={user ? <AIHome /> : <Navigate to="/login" />} />
+  <Route path="/settings" element={user ? <SettingsPage /> : <Navigate to="/login" />} />
+  <Route path="*" element={<Navigate to="/" />} />
+</Routes>
   );
 }
 
