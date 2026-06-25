@@ -203,8 +203,8 @@ export class ThumbnailIntel {
       color_harmony_score: assessment.colorHarmonyScore,
       face_detection: assessment.faceDetection,
       emotion_detected: assessment.emotionDetected,
-      improvements_suggested: assessment.improvements,
-      a_b_test_variants: assessment.aBTestSuggestions,
+      improvements_suggested: assessment.improvements as any,
+      a_b_test_variants: assessment.aBTestSuggestions as any,
     });
   }
 

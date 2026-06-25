@@ -1,314 +1,693 @@
-// supabase/functions/youtube-upload/index.ts
-//
-// Takes a videoId, reads the video metadata + file from Supabase Storage,
-// and performs a real upload to YouTube via the resumable upload protocol,
-// updating status/progress on the videos and upload_queue tables as it goes.
-//
-// NOTE ON LIMITS: Supabase Edge Functions run on Deno Deploy and have
-// memory/time constraints. This works well for small-to-medium files
-// (tested approach: stream the whole file in one resumable PUT). For very
-// large files (multi-GB), a dedicated worker outside Edge Functions would
-// be more reliable — this is a reasonable starting point for most creators.
-
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
-};
-
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID');
-const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET');
-
-interface VideoRow {
-  id: string;
-  user_id: string;
-  title: string;
-  description: string | null;
-  tags: string[] | null;
-  privacy_status: string;
-  category_id: string | null;
-  file_path: string | null;
-  youtube_channel_id: string | null;
-}
-
-interface ChannelRow {
+export interface YouTubeChannel {
   id: string;
   user_id: string;
   youtube_channel_id: string;
-  access_token: string;
-  refresh_token: string;
-  token_expires_at: string;
+  channel_title: string;
+  channel_thumbnail: string | null;
+  subscriber_count: number;
+  video_count: number;
+  view_count: number;
+  access_token: string | null;
+  refresh_token: string | null;
+  token_expires_at: string | null;
+  connected_at: string;
+  last_sync_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
-async function supabaseQuery(table: string, method: string, body?: unknown, filter?: string) {
-  let url = `${SUPABASE_URL}/rest/v1/${table}`;
-  if (filter) url += `?${filter}`;
-  const response = await fetch(url, {
-    method,
-    headers: {
-      'apikey': SUPABASE_SERVICE_KEY,
-      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-      'Content-Type': 'application/json',
-      ...(method === 'PATCH' || method === 'POST' ? { 'Prefer': method === 'POST' ? 'return=representation' : 'return=minimal' } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  return response;
+export interface Video {
+  id: string;
+  user_id: string;
+  youtube_channel_id: string | null;
+  channel_id: string | null;
+  title: string;
+  description: string | null;
+  tags: string[];
+  hashtags: string[];
+  privacy_status: 'public' | 'unlisted' | 'private';
+  category_id: string | null;
+  status: 'draft' | 'ready' | 'queued' | 'generating' | 'uploading' | 'uploaded' | 'failed' | 'scheduled';
+  is_short: boolean;
+  file_path: string | null;
+  thumbnail_file_path: string | null;
+  thumbnail_url: string | null;
+  youtube_video_id: string | null;
+  youtube_video_url: string | null;
+  duration: number | null;
+  scheduled_publish_at: string | null;
+  published_at: string | null;
+  progress: number;
+  error_message: string | null;
+  retry_count: number;
+  viral_score: number | null;
+  seo_score: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
-async function getValidAccessToken(channel: ChannelRow): Promise<string> {
-  const expiresAt = new Date(channel.token_expires_at).getTime();
-  const now = Date.now();
-
-  // Refresh if expiring within the next 2 minutes
-  if (expiresAt - now > 2 * 60 * 1000) {
-    return channel.access_token;
-  }
-
-  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
-    throw new Error('Google OAuth credentials not configured on server');
-  }
-
-  const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: GOOGLE_CLIENT_ID,
-      client_secret: GOOGLE_CLIENT_SECRET,
-      grant_type: 'refresh_token',
-      refresh_token: channel.refresh_token,
-    }).toString(),
-  });
-
-  if (!refreshResponse.ok) {
-    throw new Error('Failed to refresh YouTube access token. Please reconnect your channel.');
-  }
-
-  const tokenData = await refreshResponse.json();
-  const newAccessToken = tokenData.access_token;
-  const newExpiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
-
-  await supabaseQuery('youtube_channels', 'PATCH', {
-    access_token: newAccessToken,
-    token_expires_at: newExpiresAt,
-  }, `id=eq.${channel.id}`);
-
-  return newAccessToken;
+export interface UploadQueue {
+  id: string;
+  user_id: string;
+  video_id: string | null;
+  status: 'queued' | 'uploading' | 'processing' | 'completed' | 'failed';
+  priority: number;
+  progress: number;
+  error_message: string | null;
+  retry_count: number;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
 }
 
-async function setVideoStatus(videoId: string, status: string, extra: Record<string, unknown> = {}) {
-  await supabaseQuery('videos', 'PATCH', { status, updated_at: new Date().toISOString(), ...extra }, `id=eq.${videoId}`);
+export interface AIGeneration {
+  id: string;
+  user_id: string;
+  video_id: string | null;
+  type: 'title' | 'description' | 'tags' | 'thumbnail_idea' | 'script' | 'hashtags' | 'seo_keywords' | 'video_idea' | 'trending_topic';
+  content: string;
+  score: number | null;
+  used: boolean;
+  created_at: string;
 }
 
-async function setQueueStatus(videoId: string, status: string, extra: Record<string, unknown> = {}) {
-  await supabaseQuery('upload_queue', 'PATCH', { status, ...extra }, `video_id=eq.${videoId}`);
+export interface VideoJob {
+  id: string;
+  user_id: string;
+  video_id: string | null;
+  job_type: 'generate' | 'upload' | 'process' | 'shorts' | 'caption';
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  progress: number;
+  result_data: Record<string, unknown> | null;
+  error_message: string | null;
+  retry_count: number;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
 }
 
-Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { status: 200, headers: corsHeaders });
-  }
+export interface UploadSchedule {
+  id: string;
+  user_id: string;
+  youtube_channel_id: string | null;
+  name: string;
+  frequency: 'daily' | 'every_2_days' | 'every_3_days' | 'weekly' | 'custom';
+  custom_days: number[] | null;
+  start_time: string;
+  timezone: string;
+  is_active: boolean;
+  next_upload_at: string | null;
+  videos_count: number;
+  created_at: string;
+  updated_at: string;
+}
 
-  try {
-    // Verify the caller is authenticated (forwarded user JWT)
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing Authorization header' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+export interface Short {
+  id: string;
+  user_id: string;
+  source_video_id: string | null;
+  title: string;
+  description: string | null;
+  start_time: number | null;
+  end_time: number | null;
+  duration: number | null;
+  viral_score: number | null;
+  captions: string[] | null;
+  thumbnail_text: string | null;
+  status: 'pending' | 'generating' | 'ready' | 'uploaded' | 'failed';
+  file_path: string | null;
+  youtube_video_id: string | null;
+  progress: number;
+  created_at: string;
+  updated_at: string;
+}
 
-    const userResp = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-      headers: { 'Authorization': authHeader, 'apikey': SUPABASE_SERVICE_KEY },
-    });
-    if (!userResp.ok) {
-      return new Response(JSON.stringify({ error: 'Invalid or expired session' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-    const userData = await userResp.json();
-    const userId = userData.id;
+export interface Analytics {
+  id: string;
+  user_id: string;
+  youtube_channel_id: string | null;
+  date: string;
+  views: number;
+  subscribers_gained: number;
+  subscribers_lost: number;
+  likes: number;
+  comments: number;
+  watch_time_minutes: number;
+  impressions: number;
+  click_through_rate: number | null;
+  created_at: string;
+}
 
-    const { videoId } = await req.json();
-    if (!videoId) {
-      return new Response(JSON.stringify({ error: 'Missing videoId' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+export interface Activity {
+  id: string;
+  user_id: string;
+  type: 'video_created' | 'video_uploaded' | 'video_scheduled' | 'video_failed' | 'channel_connected' | 'ai_generated' | 'shorts_created' | 'upload_queued';
+  title: string;
+  description: string | null;
+  video_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
 
-    // Fetch the video row and confirm ownership
-    const videoResp = await supabaseQuery('videos', 'GET', undefined, `id=eq.${videoId}&user_id=eq.${userId}`);
-    const videos: VideoRow[] = videoResp.ok ? await videoResp.json() : [];
-    const video = videos[0];
+export interface AIContent {
+  titles: string[];
+  descriptions: string[];
+  tags: string[];
+  hashtags: string[];
+  seo_keywords: string[];
+  thumbnail_ideas: string[];
+  scripts: string[];
+  video_ideas: string[];
+  trending_topics: string[];
+  viral_scores: number[];
+}
 
-    if (!video) {
-      return new Response(JSON.stringify({ error: 'Video not found or not owned by you' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-    if (!video.file_path) {
-      return new Response(JSON.stringify({ error: 'No video file uploaded for this video yet' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-    if (!video.youtube_channel_id) {
-      return new Response(JSON.stringify({ error: 'No YouTube channel selected for this video' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+export interface ChannelStats {
+  subscriber_count: number;
+  view_count: number;
+  video_count: number;
+  total_videos: number;
+  uploaded_count: number;
+  pending_count: number;
+  failed_count: number;
+  scheduled_count: number;
+}
 
-    // Fetch the connected channel + tokens
-    const channelResp = await supabaseQuery(
-      'youtube_channels', 'GET', undefined,
-      `youtube_channel_id=eq.${video.youtube_channel_id}&user_id=eq.${userId}`
-    );
-    const channels: ChannelRow[] = channelResp.ok ? await channelResp.json() : [];
-    const channel = channels[0];
-    if (!channel) {
-      return new Response(JSON.stringify({ error: 'YouTube channel not connected' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+export interface AppUser {
+  id: string;
+  email: string;
+  created_at: string;
+  avatar_url?: string;
+  full_name?: string;
+}
 
-    await setVideoStatus(videoId, 'uploading', { progress: 0 });
-    await setQueueStatus(videoId, 'uploading', { started_at: new Date().toISOString() });
+// ============ AI AGENT SYSTEM TYPES ============
 
-    const accessToken = await getValidAccessToken(channel);
+export interface AgentMemory {
+  id: string;
+  user_id: string;
+  memory_type: 'fact' | 'preference' | 'pattern' | 'insight' | 'feedback' | 'correction';
+  category: string;
+  key: string;
+  value: string;
+  confidence: number;
+  source: 'user_input' | 'ai_inferred' | 'analytics' | 'feedback' | 'external' | null;
+  video_id: string | null;
+  context: Record<string, unknown> | null;
+  access_count: number;
+  last_accessed_at: string | null;
+  expires_at: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
-    // Download the file from Supabase Storage (service role, so RLS doesn't block us)
-    const fileUrl = `${SUPABASE_URL}/storage/v1/object/video-files/${video.file_path}`;
-    const fileResp = await fetch(fileUrl, {
-      headers: { 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'apikey': SUPABASE_SERVICE_KEY },
-    });
-    if (!fileResp.ok || !fileResp.body) {
-      await setVideoStatus(videoId, 'failed', { error_message: 'Could not read video file from storage' });
-      await setQueueStatus(videoId, 'failed', { error_message: 'Could not read video file from storage' });
-      return new Response(JSON.stringify({ error: 'Could not read video file from storage' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+export interface AgentSession {
+  id: string;
+  user_id: string;
+  session_type: 'chat' | 'task' | 'workflow' | 'automation';
+  title: string | null;
+  summary: string | null;
+  context: Record<string, unknown> | null;
+  metadata: Record<string, unknown> | null;
+  is_active: boolean;
+  started_at: string;
+  ended_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
-    const fileBlob = await fileResp.blob();
-    const fileSize = fileBlob.size;
-    const contentType = fileResp.headers.get('content-type') || 'video/mp4';
+export interface AgentMessage {
+  id: string;
+  session_id: string | null;
+  user_id: string;
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string;
+  tool_name: string | null;
+  tool_result: Record<string, unknown> | null;
+  tokens_used: number | null;
+  model_used: string | null;
+  latency_ms: number | null;
+  metadata: Record<string, unknown> | null;
+  parent_message_id: string | null;
+  created_at: string;
+}
 
-    // Step 1: Initiate a resumable upload session with YouTube
-    const metadata = {
-      snippet: {
-        title: video.title.slice(0, 100),
-        description: video.description || '',
-        tags: video.tags || [],
-        categoryId: video.category_id || '22',
-      },
-      status: {
-        privacyStatus: video.privacy_status || 'private',
-        selfDeclaredMadeForKids: false,
-      },
+export interface AgentKnowledge {
+  id: string;
+  user_id: string;
+  knowledge_type: 'best_practice' | 'template' | 'workflow' | 'optimization' | 'lesson_learned';
+  domain: string;
+  title: string;
+  content: string;
+  tags: string[];
+  effectiveness_score: number | null;
+  usage_count: number;
+  last_used_at: string | null;
+  source_session_id: string | null;
+  is_verified: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentToolLog {
+  id: string;
+  user_id: string;
+  session_id: string | null;
+  message_id: string | null;
+  tool_name: string;
+  tool_action: string;
+  input_data: Record<string, unknown> | null;
+  output_data: Record<string, unknown> | null;
+  success: boolean;
+  error_message: string | null;
+  duration_ms: number | null;
+  created_at: string;
+}
+
+export interface SEOHistory {
+  id: string;
+  user_id: string;
+  video_id: string | null;
+  keyword: string;
+  position: number | null;
+  impressions: number;
+  clicks: number;
+  ctr: number | null;
+  average_position: number | null;
+  search_appearance_type: string | null;
+  country: string | null;
+  date: string;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface ChannelHistory {
+  id: string;
+  user_id: string;
+  channel_id: string | null;
+  snapshot_date: string;
+  subscriber_count: number | null;
+  view_count: number | null;
+  video_count: number | null;
+  subscriber_change: number;
+  view_change: number;
+  engagement_rate: number | null;
+  avg_views_per_video: number | null;
+  top_video_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface GrowthIntelligence {
+  id: string;
+  user_id: string;
+  channel_id: string | null;
+  insight_type: 'prediction' | 'recommendation' | 'anomaly' | 'opportunity' | 'benchmark';
+  category: string;
+  title: string;
+  description: string;
+  metric_name: string | null;
+  current_value: number | null;
+  predicted_value: number | null;
+  confidence: number | null;
+  time_frame: string | null;
+  action_items: Record<string, unknown>[] | null;
+  related_videos: string[];
+  priority: number;
+  is_actioned: boolean;
+  actioned_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CopyrightReport {
+  id: string;
+  user_id: string;
+  video_id: string | null;
+  youtube_video_id: string | null;
+  report_type: 'claim' | 'takedown' | 'strike' | 'warning' | 'content_id_match' | 'manual_check';
+  claimant: string | null;
+  claim_type: string | null;
+  asset_title: string | null;
+  status: 'active' | 'resolved' | 'disputed' | 'appealed' | 'expired';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  affected_content: string | null;
+  restrictions: Record<string, unknown> | null;
+  resolution_notes: string | null;
+  detected_at: string;
+  resolved_at: string | null;
+  expires_at: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScheduledPublish {
+  id: string;
+  user_id: string;
+  video_id: string | null;
+  youtube_channel_id: string;
+  scheduled_for: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  priority: number;
+  retry_count: number;
+  max_retries: number;
+  error_message: string | null;
+  metadata: Record<string, unknown> | null;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserSettings {
+  id: string;
+  user_id: string;
+  gemini_api_key: string | null;
+  channel_niche: string | null;
+  ai_preferences: Record<string, unknown>;
+  notification_preferences: Record<string, unknown>;
+  automation_enabled: boolean;
+  learning_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============ PHASE 2 AGENT SYSTEM TYPES ============
+
+export interface TrendIntelligence {
+  id: string;
+  user_id: string;
+  topic: string;
+  category: string;
+  trend_type: 'rising' | 'viral' | 'emerging' | 'seasonal' | 'evergreen' | 'stable';
+  platform: string;
+  velocity: number;
+  volume: number;
+  growth_rate: number;
+  peak_time: string | null;
+  related_keywords: string[];
+  suggested_angles: string[];
+  competition_level: 'low' | 'medium' | 'high' | null;
+  opportunity_score: number;
+  detected_at: string;
+  expires_at: string | null;
+  is_actioned: boolean;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CompetitorIntelligence {
+  id: string;
+  user_id: string;
+  competitor_channel_id: string;
+  competitor_title: string;
+  competitor_thumbnail: string | null;
+  competitor_subscribers: number;
+  competitor_views: number;
+  competitor_video_count: number;
+  niche: string | null;
+  content_patterns: Record<string, unknown> | null;
+  upload_frequency: string | null;
+  avg_video_performance: number | null;
+  top_videos: Record<string, unknown>[] | null;
+  growth_trend: 'growing' | 'stable' | 'declining' | null;
+  strengths: string[];
+  weaknesses: string[];
+  content_gaps: string[];
+  opportunity_areas: string[];
+  last_analyzed: string | null;
+  is_tracking: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ThumbnailIntelligence {
+  id: string;
+  user_id: string;
+  video_id: string | null;
+  thumbnail_url: string | null;
+  thumbnail_file_path: string | null;
+  overall_score: number;
+  ctr_prediction: number;
+  engagement_potential: number;
+  clarity_score: number;
+  eye_catching_score: number;
+  text_readability_score: number;
+  color_harmony_score: number;
+  face_detection: boolean;
+  emotion_detected: string | null;
+  improvements_suggested: Record<string, unknown>[] | null;
+  a_b_test_variants: Record<string, unknown>[] | null;
+  winning_variant: string | null;
+  model_used: string | null;
+  analyzed_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ShortsIntelligence {
+  id: string;
+  user_id: string;
+  source_video_id: string | null;
+  source_youtube_url: string | null;
+  transcript: string | null;
+  detected_moments: Record<string, unknown>[] | null;
+  selected_moments: Record<string, unknown>[] | null;
+  generated_short_count: number;
+  short_ids: string[];
+  hook_scores: Record<string, unknown> | null;
+  viral_potential: number;
+  processing_status: 'pending' | 'transcribing' | 'analyzing' | 'generating' | 'completed' | 'failed' | 'processing';
+  error_message: string | null;
+  metadata: Record<string, unknown> | null;
+  processed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentState {
+  id: string;
+  user_id: string;
+  agent_name: string;
+  agent_type: 'youtube_intelligence' | 'trend_research' | 'competitor_intel' | 'thumbnail_intel' | 'shorts_factory' | 'seo_analyzer' | 'channel_history' | 'growth_hub' | 'copyright_monitor' | 'smart_queue';
+  status: 'idle' | 'thinking' | 'listening' | 'researching' | 'learning' | 'processing' | 'error' | 'analyzing';
+  current_task: string | null;
+  last_activity: string | null;
+  activity_timestamp: string | null;
+  tasks_completed: number;
+  tasks_failed: number;
+  last_error: string | null;
+  uptime_seconds: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IntelligenceDecision {
+  id: string;
+  user_id: string;
+  decision_type: 'seo_approval' | 'upload_approval' | 'thumbnail_approval' | 'shorts_approval' | 'growth_recommendation' | 'content_strategy';
+  context: Record<string, unknown>;
+  proposed_action: Record<string, unknown>;
+  agent_recommendation: string;
+  confidence: number;
+  reasoning: string | null;
+  user_decision: 'approved' | 'rejected' | 'modified' | 'pending' | null;
+  user_feedback: string | null;
+  outcome_data: Record<string, unknown> | null;
+  is_actionable: boolean;
+  expires_at: string | null;
+  decided_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ViralMoment {
+  startTime: number;
+  endTime: number;
+  hookType: string;
+  viralityScore: number;
+  reason: string;
+  suggestedTitle: string;
+}
+
+export interface DetectedTrend {
+  topic: string;
+  velocity: number;
+  volume: number;
+  platform: string;
+  category: string;
+  opportunityScore: number;
+}
+
+export interface ThumbnailScore {
+  overall: number;
+  ctr: number;
+  clarity: number;
+  eyeCatching: number;
+  textReadability: number;
+  colorHarmony: number;
+}
+
+export interface AgentStatusReport {
+  agentName: string;
+  agentType: string;
+  status: AgentState['status'];
+  currentTask: string | null;
+  tasksCompleted: number;
+  lastActivity: string | null;
+  isActive: boolean;
+}
+
+export interface IntelligenceReport {
+  pendingDecisions: number;
+  activeTrends: number;
+  trackingCompetitors: number;
+  pendingShorts: number;
+  thumbnailQueue: number;
+  overallHealth: number;
+}
+
+export interface Database {
+  public: {
+    Tables: {
+      videos: {
+        Row: Video;
+        Insert: Partial<Video>;
+        Update: Partial<Video>;
+      };
+      youtube_channels: {
+        Row: YouTubeChannel;
+        Insert: Partial<YouTubeChannel>;
+        Update: Partial<YouTubeChannel>;
+      };
+      activities: {
+        Row: Activity;
+        Insert: Partial<Activity>;
+        Update: Partial<Activity>;
+      };
+      upload_queue: {
+        Row: UploadQueue;
+        Insert: Partial<UploadQueue>;
+        Update: Partial<UploadQueue>;
+      };
+      ai_generations: {
+        Row: AIGeneration;
+        Insert: Partial<AIGeneration>;
+        Update: Partial<AIGeneration>;
+      };
+      video_jobs: {
+        Row: VideoJob;
+        Insert: Partial<VideoJob>;
+        Update: Partial<VideoJob>;
+      };
+      analytics: {
+        Row: Analytics;
+        Insert: Partial<Analytics>;
+        Update: Partial<Analytics>;
+      };
+      upload_schedules: {
+        Row: UploadSchedule;
+        Insert: Partial<UploadSchedule>;
+        Update: Partial<UploadSchedule>;
+      };
+      shorts: {
+        Row: Short;
+        Insert: Partial<Short>;
+        Update: Partial<Short>;
+      };
+      agent_memory: {
+        Row: AgentMemory;
+        Insert: Partial<AgentMemory>;
+        Update: Partial<AgentMemory>;
+      };
+      agent_sessions: {
+        Row: AgentSession;
+        Insert: Partial<AgentSession>;
+        Update: Partial<AgentSession>;
+      };
+      agent_messages: {
+        Row: AgentMessage;
+        Insert: Partial<AgentMessage>;
+        Update: Partial<AgentMessage>;
+      };
+      agent_knowledge: {
+        Row: AgentKnowledge;
+        Insert: Partial<AgentKnowledge>;
+        Update: Partial<AgentKnowledge>;
+      };
+      agent_tool_logs: {
+        Row: AgentToolLog;
+        Insert: Partial<AgentToolLog>;
+        Update: Partial<AgentToolLog>;
+      };
+      seo_history: {
+        Row: SEOHistory;
+        Insert: Partial<SEOHistory>;
+        Update: Partial<SEOHistory>;
+      };
+      channel_history: {
+        Row: ChannelHistory;
+        Insert: Partial<ChannelHistory>;
+        Update: Partial<ChannelHistory>;
+      };
+      growth_intelligence: {
+        Row: GrowthIntelligence;
+        Insert: Partial<GrowthIntelligence>;
+        Update: Partial<GrowthIntelligence>;
+      };
+      copyright_reports: {
+        Row: CopyrightReport;
+        Insert: Partial<CopyrightReport>;
+        Update: Partial<CopyrightReport>;
+      };
+      scheduled_publishes: {
+        Row: ScheduledPublish;
+        Insert: Partial<ScheduledPublish>;
+        Update: Partial<ScheduledPublish>;
+      };
+      user_settings: {
+        Row: UserSettings;
+        Insert: Partial<UserSettings>;
+        Update: Partial<UserSettings>;
+      };
+      trend_intelligence: {
+        Row: TrendIntelligence;
+        Insert: Partial<TrendIntelligence>;
+        Update: Partial<TrendIntelligence>;
+      };
+      competitor_intelligence: {
+        Row: CompetitorIntelligence;
+        Insert: Partial<CompetitorIntelligence>;
+        Update: Partial<CompetitorIntelligence>;
+      };
+      thumbnail_intelligence: {
+        Row: ThumbnailIntelligence;
+        Insert: Partial<ThumbnailIntelligence>;
+        Update: Partial<ThumbnailIntelligence>;
+      };
+      shorts_intelligence: {
+        Row: ShortsIntelligence;
+        Insert: Partial<ShortsIntelligence>;
+        Update: Partial<ShortsIntelligence>;
+      };
+      agent_states: {
+        Row: AgentState;
+        Insert: Partial<AgentState>;
+        Update: Partial<AgentState>;
+      };
+      intelligence_decisions: {
+        Row: IntelligenceDecision;
+        Insert: Partial<IntelligenceDecision>;
+        Update: Partial<IntelligenceDecision>;
+      };
     };
+  };
+}
 
-    const initResp = await fetch(
-      'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'X-Upload-Content-Type': contentType,
-          'X-Upload-Content-Length': String(fileSize),
-        },
-        body: JSON.stringify(metadata),
-      }
-    );
 
-    if (!initResp.ok) {
-      const errText = await initResp.text();
-      await setVideoStatus(videoId, 'failed', { error_message: `YouTube init failed: ${errText.slice(0, 500)}` });
-      await setQueueStatus(videoId, 'failed', { error_message: 'YouTube init failed' });
-      return new Response(JSON.stringify({ error: 'Failed to initiate YouTube upload', details: errText }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
 
-    const uploadUrl = initResp.headers.get('Location');
-    if (!uploadUrl) {
-      await setVideoStatus(videoId, 'failed', { error_message: 'YouTube did not return an upload URL' });
-      await setQueueStatus(videoId, 'failed', { error_message: 'No upload URL returned' });
-      return new Response(JSON.stringify({ error: 'No upload URL returned by YouTube' }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
 
-    await setVideoStatus(videoId, 'uploading', { progress: 25 });
-
-    // Step 2: Upload the file bytes in one PUT (suitable for small/medium files)
-    const uploadResp = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': contentType,
-        'Content-Length': String(fileSize),
-      },
-      body: fileBlob,
-    });
-
-    if (!uploadResp.ok) {
-      const errText = await uploadResp.text();
-      await setVideoStatus(videoId, 'failed', { error_message: `YouTube upload failed: ${errText.slice(0, 500)}` });
-      await setQueueStatus(videoId, 'failed', { error_message: 'Upload failed' });
-      return new Response(JSON.stringify({ error: 'YouTube upload failed', details: errText }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const uploadedVideo = await uploadResp.json();
-    const youtubeVideoId = uploadedVideo.id;
-
-    await setVideoStatus(videoId, 'uploaded', {
-      progress: 100,
-      youtube_video_id: youtubeVideoId,
-      youtube_video_url: `https://www.youtube.com/watch?v=${youtubeVideoId}`,
-      published_at: new Date().toISOString(),
-    });
-    await setQueueStatus(videoId, 'completed', { completed_at: new Date().toISOString(), progress: 100 });
-
-    await supabaseQuery('activities', 'POST', {
-      user_id: userId,
-      type: 'video_uploaded',
-      title: 'Video uploaded to YouTube',
-      description: video.title,
-      video_id: videoId,
-      metadata: { youtube_video_id: youtubeVideoId },
-    });
-
-    return new Response(JSON.stringify({
-      success: true,
-      youtubeVideoId,
-      youtubeVideoUrl: `https://www.youtube.com/watch?v=${youtubeVideoId}`,
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-
-  } catch (error) {
-    console.error('YouTube upload error:', error);
-    return new Response(JSON.stringify({
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-});

@@ -226,7 +226,9 @@ export class AgentOrchestrator {
       content: responseContent,
       intent,
       toolCalls,
-      suggestions};
+      suggestions,
+      metadata: {},
+    };
   }
 
   private detectIntent(message: string): AgentIntent {

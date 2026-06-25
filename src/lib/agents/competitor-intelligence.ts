@@ -86,7 +86,7 @@ export class CompetitorIntel {
       competitor_views: profile.totalViews,
       competitor_video_count: profile.videoCount,
       niche: profile.niche,
-      content_patterns: analysis.contentPatterns,
+      content_patterns: analysis.contentPatterns as any,
       upload_frequency: analysis.uploadFrequency,
       avg_video_performance: analysis.avgPerformance,
       growth_trend: analysis.growthTrend,

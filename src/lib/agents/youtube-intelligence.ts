@@ -439,7 +439,7 @@ export class YouTubeIntelligence {
     const reasoning = this.generateDecisionReasoning(request, assessment);
 
     return createDecision({
-      decision_type: request.type,
+      decision_type: request.type as any,
       context: request.context,
       proposed_action: {
         action: recommendation,

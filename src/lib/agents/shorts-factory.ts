@@ -77,11 +77,10 @@ export class ShortsFactory {
 
     try {
       const transcript = await this.generateTranscript(youtubeUrl);
-      await updateShortsJob(job.id, { transcript });
-
+      await updateShortsJob(job.id, { transcript: JSON.stringify(transcript) });
       const moments = await this.detectViralMoments(transcript);
       await updateShortsJob(job.id, {
-        detected_moments: moments,
+        detected_moments: moments as any,
         processing_status: 'processing',
       });
 
@@ -90,8 +89,8 @@ export class ShortsFactory {
       const viralPotential = this.calculateViralPotential(selectedMoments, hookScores);
 
       await updateShortsJob(job.id, {
-        selected_moments: selectedMoments,
-        hook_scores: hookScores,
+        selected_moments: selectedMoments as any,
+        hook_scores: hookScores as any,
         viral_potential: viralPotential,
         processing_status: 'completed',
         generated_short_count: selectedMoments.length,
