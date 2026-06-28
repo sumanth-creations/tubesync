@@ -241,52 +241,39 @@ export default function AIAgentPage() {
     result.setHours(hour, 0, 0, 0);
     return result;
   }
-
   const handleSend = async () => {
   if (!input.trim() || loading) return;
 
-  const userMessage: Message = { id: Date.now().toString(), role: 'user', content: input };
-  setMessages((prev) => [...prev, userMessage]);
-  setInput('');
   setLoading(true);
-
+  
   try {
     const settings = await getUserSettings();
-    if (!settings?.gemini_api_key) throw new Error("NO_API_KEY");
+    if (!settings?.gemini_api_key) throw new Error("API Key missing!");
 
-    // Rate limit fix: delay add chesam
-    await delay(1000);
+    // API URL ni ikkada double check cheyyi
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${settings.gemini_api_key}`;
 
-    // API Call fix: Correct structure (contents -> parts -> text)
-     // New line (use this):
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${settings.gemini_api_key}`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    contents: [{
-      parts: [{ text: input }]
-    }]
-  }),
-});
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{ text: input }]
+        }]
+      }),
+    });
+
+    // Server em chepthundo ikkada clear ga telustundi
     if (!response.ok) {
       const errorData = await response.json();
-      console.error("API Error Data:", errorData); // idi console lo chudu
-      throw new Error(`API Error: ${response.status}`);
+      console.error("Server Error Details:", errorData); // idi chudu
+      throw new Error(`Error ${response.status}: ${errorData.error.message}`);
     }
 
     const data = await response.json();
-    const aiContent = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response.";
-
-    setMessages((prev) => [
-      ...prev,
-      { id: Date.now().toString(), role: 'assistant', content: aiContent },
-    ]);
-  } catch (error: any) {
-    console.error("Error sending message:", error);
-    setMessages((prev) => [
-      ...prev,
-      { id: 'error', role: 'assistant', content: "Error: " + error.message },
-    ]);
+    // Success message...
+  } catch (err) {
+    console.error("Catch block error:", err);
   } finally {
     setLoading(false);
   }
