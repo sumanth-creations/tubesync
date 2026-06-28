@@ -258,16 +258,16 @@ export default function AIAgentPage() {
     await delay(1000);
 
     // API Call fix: Correct structure (contents -> parts -> text)
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${settings.gemini_api_key}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{ text: input }]
-        }]
-      }),
-    });
-
+     // New line (use this):
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${settings.gemini_api_key}`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    contents: [{
+      parts: [{ text: input }]
+    }]
+  }),
+});
     if (!response.ok) {
       const errorData = await response.json();
       console.error("API Error Data:", errorData); // idi console lo chudu
