@@ -243,60 +243,54 @@ export default function AIAgentPage() {
   }
 
   const handleSend = async () => {
-    if (!input.trim() || loading) return;
+  if (!input.trim() || loading) return;
 
-    const userMessage: Message = { id: Date.now().toString(), role: 'user', content: input };
-    setMessages((prev) => [...prev, userMessage]);
-    setInput('');
-    setLoading(true);
+  const userMessage: Message = { id: Date.now().toString(), role: 'user', content: input };
+  setMessages((prev) => [...prev, userMessage]);
+  setInput('');
+  setLoading(true);
 
-    try {
-      // 1. Fetch settings from DB
-      const settings = await getUserSettings();
-      console.log("Fetched Settings:", settings); // Idi chudu console lo
-      
-      if (!settings?.gemini_api_key) {
-        throw new Error("NO_API_KEY");
-      }
+  try {
+    const settings = await getUserSettings();
+    if (!settings?.gemini_api_key) throw new Error("NO_API_KEY");
 
-      // 2. Delay for Rate Limiting
-      await delay(1000);
+    // Rate limit fix: delay add chesam
+    await delay(1000);
 
-      // 3. API Call (using 1.5-flash)
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${settings.gemini_api_key}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: input }]
-          }]
-        }),
-      });
+    // API Call fix: Correct structure (contents -> parts -> text)
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${settings.gemini_api_key}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{ text: input }]
+        }]
+      }),
+    });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("API Error Data:", errorData);
-        throw new Error(`API Error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response.";
-
-      setMessages((prev) => [
-        ...prev,
-        { id: (Date.now() + 1).toString(), role: 'assistant', content: aiResponse },
-      ]);
-    } catch (error: any) {
-      console.error("Error sending message:", error);
-      setMessages((prev) => [
-        ...prev,
-        { id: 'error', role: 'assistant', content: "Error: " + error.message },
-      ]);
-    } finally {
-      setLoading(false);
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("API Error Data:", errorData); // idi console lo chudu
+      throw new Error(`API Error: ${response.status}`);
     }
-  };
 
+    const data = await response.json();
+    const aiContent = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response.";
+
+    setMessages((prev) => [
+      ...prev,
+      { id: Date.now().toString(), role: 'assistant', content: aiContent },
+    ]);
+  } catch (error: any) {
+    console.error("Error sending message:", error);
+    setMessages((prev) => [
+      ...prev,
+      { id: 'error', role: 'assistant', content: "Error: " + error.message },
+    ]);
+  } finally {
+    setLoading(false);
+  }
+};
   const handleQuickAction = (action: string) => {
     setInput(action);
     setTimeout(() => handleSend(), 100);
