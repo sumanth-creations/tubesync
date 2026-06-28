@@ -242,7 +242,6 @@ export default function AIAgentPage() {
     return result;
   }
 
-  // --- FIX START: Optimized HandleSend ---
   const handleSend = async () => {
     if (!input.trim() || loading) return;
 
@@ -252,25 +251,34 @@ export default function AIAgentPage() {
     setLoading(true);
 
     try {
-      // Get API Key from settings first
+      // 1. Fetch settings from DB
       const settings = await getUserSettings();
-      if (!settings?.gemini_api_key) throw new Error("NO_API_KEY");
+      console.log("Fetched Settings:", settings); // Idi chudu console lo
+      
+      if (!settings?.gemini_api_key) {
+        throw new Error("NO_API_KEY");
+      }
 
-      // Rate limit fix: Added 1 sec delay
+      // 2. Delay for Rate Limiting
       await delay(1000);
 
-      // Using your agentOrchestrator, but adding a check if needed
-      // If agentOrchestrator.chat uses its own fetch, make sure it is updated there too.
-      // Or use this direct API approach for reliability:
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${settings.gemini_api_key}`, {
+      // 3. API Call (using 1.5-flash)
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${settings.gemini_api_key}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: input }] }]
+          contents: [{
+            parts: [{ text: input }]
+          }]
         }),
       });
 
-      if (!response.ok) throw new Error(`API Error: ${response.status}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("API Error Data:", errorData);
+        throw new Error(`API Error: ${response.status}`);
+      }
+
       const data = await response.json();
       const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response.";
 
@@ -279,18 +287,15 @@ export default function AIAgentPage() {
         { id: (Date.now() + 1).toString(), role: 'assistant', content: aiResponse },
       ]);
     } catch (error: any) {
-      const errMsg = error.message === 'NO_API_KEY' 
-        ? "I need a free Gemini API key to chat properly. Head to Settings and paste in a key!" 
-        : 'Sorry, I ran into an error. Please try again.';
+      console.error("Error sending message:", error);
       setMessages((prev) => [
         ...prev,
-        { id: (Date.now() + 1).toString(), role: 'assistant', content: errMsg },
+        { id: 'error', role: 'assistant', content: "Error: " + error.message },
       ]);
     } finally {
       setLoading(false);
     }
   };
-  // --- FIX END ---
 
   const handleQuickAction = (action: string) => {
     setInput(action);
