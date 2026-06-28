@@ -1,137 +1,63 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
-import { Send, Bot, User, Sparkles, Loader as Loader2, Wand as Wand2, Upload, BarChart3, Shield, Zap, TriangleAlert as AlertTriangle, Lightbulb, Target, Activity, Calendar, FileVideo, CheckCircle2, X, Eye, EyeOff, Users, Baby, Clock } from 'lucide-react';
-import {
-  agentOrchestrator, smartQueue, copyrightMonitor, channelIntelligence, growthHub, seoAnalyzer, learningEngine,
-} from '../lib/agents';
-import {
-  getYouTubeChannels, getUserSettings, getVideos, logActivity, generateVideoMetadata, suggestBestPostTime, createVideo, uploadVideoFile, pushVideoToYouTube, scheduleAutoPublish, type BestTimeSuggestion,
-} from '../lib/api';
-import type { YouTubeChannel, Video as VideoType } from '../types';
-
-const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
-
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  suggestions?: string[];
-  intent?: string;
-}
-
-type PublishStep = 'idle' | 'analyzing' | 'review' | 'privacy' | 'kids' | 'scheduling' | 'publishing' | 'done' | 'failed';
-type AgentTab = 'chat' | 'dashboard' | 'queue' | 'copyright' | 'growth';
+import { useState, useRef } from 'react';
+import { Bot, Send, Loader2 } from 'lucide-react';
+import { getUserSettings } from '../lib/api';
 
 export default function AIAgentPage() {
-  const [activeTab, setActiveTab] = useState<AgentTab>('chat');
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: "Hey! I'm your AI assistant — ask me anything about your channel, video ideas, scripts, titles, or just chat. What's on your mind?",
-    },
-  ]);
+  const [messages, setMessages] = useState([{ id: '1', role: 'assistant', content: 'Hello! I am ready to help. What do you need?' }]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // States for Publish Assistant
-  const [publishStep, setPublishStep] = useState<PublishStep>('idle');
-  const [videoFiles, setVideoFiles] = useState<File[]>([]);
-  const [metadataList, setMetadataList] = useState<{ file: File; title: string; description: string; tags: string[]; hashtags: string[] }[]>([]);
-  const [analyzeProgress, setAnalyzeProgress] = useState({ done: 0, total: 0 });
-  const [privacyStatus, setPrivacyStatus] = useState<'public' | 'unlisted' | 'private' | null>(null);
-  const [bestTime, setBestTime] = useState<BestTimeSuggestion | null>(null);
-  const [channels, setChannels] = useState<YouTubeChannel[]>([]);
-  const [selectedChannelId, setSelectedChannelId] = useState('');
-  const [publishError, setPublishError] = useState('');
-  const [wasScheduled, setWasScheduled] = useState(false);
-  const [publishProgress, setPublishProgress] = useState({ done: 0, total: 0 });
-
-  // Dashboard states
-  const [dashboardLoading, setDashboardLoading] = useState(true);
-  const [queueStats, setQueueStats] = useState({ pending: 0, inProgress: 0, completed: 0, failed: 0, scheduled: 0 });
-  const [copyrightSummary, setCopyrightSummary] = useState({ total: 0, active: 0, resolved: 0, critical: 0, revenueAtRisk: 0 });
-  const [channelHealth, setChannelHealth] = useState<any>(null);
-  const [growthAnalysis, setGrowthAnalysis] = useState<any>(null);
-
-  useEffect(() => {
-    getYouTubeChannels().then((list) => {
-      setChannels(list);
-      if (list[0]) setSelectedChannelId(list[0].youtube_channel_id);
-    }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const loadDashboardData = useCallback(async () => {
-    setDashboardLoading(true);
-    try {
-      const [qStats, cSummary] = await Promise.all([
-        smartQueue.getQueueStats(),
-        copyrightMonitor.getClaimSummary(),
-      ]);
-      setQueueStats(qStats);
-      setCopyrightSummary(cSummary);
-      if (channels.length > 0) {
-        const health = await channelIntelligence.generateHealthReport(channels[0].id);
-        setChannelHealth(health);
-      }
-    } catch (err) {
-      console.error('Failed to load dashboard:', err);
-    } finally {
-      setDashboardLoading(false);
-    }
-  }, [channels]);
-
-  useEffect(() => {
-    if (activeTab === 'dashboard') loadDashboardData();
-  }, [activeTab, loadDashboardData]);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
 
-    const userMessage: Message = { id: Date.now().toString(), role: 'user', content: input };
-    setMessages((prev) => [...prev, userMessage]);
-    setInput('');
     setLoading(true);
+    const userMsg = { id: Date.now().toString(), role: 'user', content: input };
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
 
     try {
-      // Adding delay to prevent 429 rate limit
-      await delay(1000);
-      const response = await agentOrchestrator.chat(input);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: response.content,
-          suggestions: response.suggestions,
-        },
-      ]);
-    } catch (error) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: 'I ran into a rate limit or error. Please wait a moment and try again.',
-        },
-      ]);
+      const settings = await getUserSettings();
+      if (!settings?.gemini_api_key) throw new Error("API Key ledhu! Settings lo add cheyyi.");
+
+      // Kotha structure (1.5-flash)
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${settings.gemini_api_key}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: input }] }]
+        })
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error?.message || "Something went wrong");
+      }
+
+      const aiText = data.candidates[0].content.parts[0].text;
+      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: aiText }]);
+    } catch (err: any) {
+      setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: "Error: " + err.message }]);
     } finally {
       setLoading(false);
     }
   };
 
-  // ... (Keep the rest of your UI/JSX structure as it was originally)
-  // Since you have many functions like handlePublishFilesSelect, I recommend keeping your 
-  // original JSX layout and just replacing the functions above the return() statement with these versions.
-  
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col">
-        {/* Your Original JSX return block here */}
+    <div className="flex flex-col h-screen p-4">
+      <div className="flex-1 overflow-y-auto mb-4">
+        {messages.map(m => (
+          <div key={m.id} className={`p-2 ${m.role === 'user' ? 'text-right' : 'text-left'}`}>
+            <span className="p-2 bg-gray-200 rounded">{m.content}</span>
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input value={input} onChange={(e) => setInput(e.target.value)} className="border p-2 flex-1" />
+        <button onClick={handleSend} disabled={loading} className="bg-blue-600 text-white p-2">
+          {loading ? <Loader2 className="animate-spin" /> : <Send />}
+        </button>
+      </div>
     </div>
   );
 }
