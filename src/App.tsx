@@ -51,20 +51,21 @@ function RootRedirect() {
   if (loading) return <PageLoader />;
   return target ? <Navigate to={target} replace /> : null;
 }
-
 function AppRoutes() {
   return (
     <>
       <Toaster position="top-right" />
       <Routes>
+        {/* Public Routes */}
+        <Route path="/" element={<Suspense fallback={<PageLoader />}><AIHomePage /></Suspense>} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
+        
+        {/* Protected Routes */}
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-          <Route path="/" element={<RootRedirect />} />
-          <Route path="/ai-home" element={<Suspense fallback={<PageLoader />}><AIHomePage /></Suspense>} />
-          <Route path="/command-center" element={<Suspense fallback={<PageLoader />}><AgentCommandCenter /></Suspense>} />
           <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
+          <Route path="/command-center" element={<Suspense fallback={<PageLoader />}><AgentCommandCenter /></Suspense>} />
           <Route path="/agent" element={<Suspense fallback={<PageLoader />}><AIAgentPage /></Suspense>} />
           <Route path="/generate" element={<Suspense fallback={<PageLoader />}><GeneratePage /></Suspense>} />
           <Route path="/upload" element={<Suspense fallback={<PageLoader />}><UploadPage /></Suspense>} />
@@ -75,7 +76,7 @@ function AppRoutes() {
           <Route path="/calendar" element={<Suspense fallback={<PageLoader />}><CalendarPage /></Suspense>} />
           <Route path="/seo" element={<Suspense fallback={<PageLoader />}><SEOAnalyzer /></Suspense>} />
         </Route>
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
   );
