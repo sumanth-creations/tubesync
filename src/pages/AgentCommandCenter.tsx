@@ -1,23 +1,11 @@
-/**
- * Agent Command Center - TubeSync AI Auto Upload Dashboard
- *
- * Features:
- * - Next Upload Card with countdown
- * - Smart Video Queue with drag reorder
- * - AI Insights & Stats
- * - Glassmorphism + Gradient UI
- * - Live agent monitoring
- */
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 import {
   getAgentStates,
-  getIntelligenceReport,
-  getPendingDecisions,
-  getTrends,
   initializeAgentStates,
 } from '../lib/agents';
+import { uploadVideo, getUserSettings } from '../lib/api';
 
 interface AgentStatus {
   id: string;
@@ -41,6 +29,7 @@ interface NextVideo {
   ai_title: string;
   ai_reason: string;
   status: 'queued' | 'analyzing' | 'ready' | 'uploading';
+  video_file?: File;
 }
 
 const agentIcons: Record<string, string> = {
@@ -60,9 +49,11 @@ export default function AgentCommandCenter() {
   const navigate = useNavigate();
   const [agents, setAgents] = useState<AgentStatus[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const [nextVideo, setNextVideo] = useState<NextVideo | null>(null);
   const [queueCount, setQueueCount] = useState(32);
   const [countdown, setCountdown] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadCommandCenter();
@@ -88,12 +79,10 @@ export default function AgentCommandCenter() {
   const loadCommandCenter = async () => {
     try {
       await initializeAgentStates();
-      const [agentStates] = await Promise.all([
-        getAgentStates(),
-      ]);
-
+      const agentStates = await getAgentStates();
       setAgents(agentStates as any);
 
+      // Mock data - nee backend nunchi ravali
       setNextVideo({
         id: '1',
         title: 'Docker lo GPU Setup Telugu',
@@ -107,7 +96,56 @@ export default function AgentCommandCenter() {
       setLoading(false);
     } catch (error) {
       console.error('Failed to load:', error);
+      toast.error('Failed to load agents');
       setLoading(false);
+    }
+  };
+
+  const handleUploadNow = async () => {
+    // File select cheyyamani prompt
+    if (!nextVideo?.video_file) {
+      fileInputRef.current?.click();
+      return;
+    }
+
+    setUploading(true);
+    const toastId = toast.loading('Uploading to YouTube...');
+
+    try {
+      const settings = await getUserSettings();
+      if (!settings?.youtube_connected) {
+        throw new Error('YouTube connect cheyyaledhu! Settings ki velli connect chey.');
+      }
+
+      const formData = new FormData();
+      formData.append('video', nextVideo.video_file);
+      formData.append('title', nextVideo.ai_title);
+      formData.append('description', nextVideo.ai_reason);
+
+      const result = await uploadVideo(formData);
+      
+      toast.success('Upload Success! 🎉', { id: toastId });
+      console.log('YouTube URL:', result.video_url);
+      
+      // Queue update
+      setQueueCount(prev => prev - 1);
+      setNextVideo(null);
+      
+    } catch (error: any) {
+      toast.error('Upload Failed: ' + error.message, { id: toastId });
+      console.error(error);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && nextVideo) {
+      setNextVideo({...nextVideo, video_file: file });
+      toast.success(`Selected: ${file.name}`);
+      // Auto upload after file select
+      setTimeout(() => handleUploadNow(), 500);
     }
   };
 
@@ -136,6 +174,14 @@ export default function AgentCommandCenter() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950/10 to-slate-950 text-white">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="video/*"
+        onChange={handleFileSelect}
+        className="hidden"
+      />
+      
       <div className="border-b border-slate-800/50 backdrop-blur-xl bg-slate-950/50 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-5">
           <div className="flex items-center justify-between">
@@ -201,10 +247,17 @@ export default function AgentCommandCenter() {
                 </div>
 
                 <div className="space-y-3">
-                  <button className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 rounded-xl font-semibold transition-all shadow-lg shadow-purple-500/30">
-                    Upload Now ⚡
+                  <button 
+                    onClick={handleUploadNow}
+                    disabled={uploading}
+                    className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-semibold transition-all shadow-lg shadow-purple-500/30"
+                  >
+                    {uploading? 'Uploading...' : 'Upload Now ⚡'}
                   </button>
-                  <button className="w-full py-3.5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-xl font-semibold transition-all">
+                  <button 
+                    onClick={() => navigate('/videos')}
+                    className="w-full py-3.5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-xl font-semibold transition-all"
+                  >
                     Edit Details
                   </button>
                 </div>
@@ -277,9 +330,9 @@ export default function AgentCommandCenter() {
               <div className="space-y-2">
                 {[
                   { label: 'Upload Folder', icon: '📁', action: () => navigate('/upload') },
-                  { label: 'AI Assistant', icon: '💬', action: () => navigate('/') },
+                  { label: 'AI Assistant', icon: '💬', action: () => navigate('/agent') },
                   { label: 'Shorts Factory', icon: '⚡', action: () => navigate('/shorts') },
-                  { label: 'Analytics', icon: '📊', action: () => navigate('/analytics') },
+                  { label: 'Analytics', icon: '📊', action: () => navigate('/seo') },
                 ].map((btn, i) => (
                   <button
                     key={i}
