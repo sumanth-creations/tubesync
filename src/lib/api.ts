@@ -698,3 +698,61 @@ export async function chatWithAgent(
   const result = await callAiGenerate('chat', apiKey, { message, history });
   return result.reply;
 }
+// ============ AI Agent Functions - Add at end of api.ts ============
+
+export const getUserVideos = async (): Promise<Video[]> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not signed in');
+  
+  const { data, error } = await supabase
+   .from('videos')
+   .select('*')
+   .eq('user_id', user.id)
+   .order('created_at', { ascending: false })
+   .limit(50);
+    
+  if (error) throw error;
+  return data || [];
+};
+
+export const getChannelStats = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not signed in');
+
+  // Get videos with stats
+  const { data: videos, error: vidError } = await supabase
+   .from('videos')
+   .select('view_count, like_count, title')
+   .eq('user_id', user.id);
+  
+  if (vidError) throw vidError;
+
+  const totalViews = videos?.reduce((sum, v) => sum + (v.view_count || 0), 0) || 0;
+  const totalLikes = videos?.reduce((sum, v) => sum + (v.like_count || 0), 0) || 0;
+  const avgViews = videos?.length? Math.round(totalViews / videos.length) : 0;
+  const videoCount = videos?.length || 0;
+
+  // Get YouTube channels count
+  const { count: channelCount } = await supabase
+   .from('youtube_channels')
+   .select('*', { count: 'exact', head: true })
+   .eq('user_id', user.id);
+
+  // Get worst/best video
+  const sortedByViews = [...(videos || [])].sort((a, b) => (a.view_count || 0) - (b.view_count || 0));
+  const worstVideo = sortedByViews[0];
+  const bestVideo = sortedByViews[sortedByViews.length - 1];
+
+  return {
+    totalViews,
+    totalLikes,
+    avgViews,
+    videoCount,
+    channelCount: channelCount || 0,
+    subscribers: 0, // TODO: Sync from YouTube API
+    worstVideo: worstVideo? { title: worstVideo.title, views: worstVideo.view_count || 0 } : null,
+    bestVideo: bestVideo? { title: bestVideo.title, views: bestVideo.view_count || 0 } : null
+  };
+};
+
+// updateVideo already exists at line 97, no need to add
