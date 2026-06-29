@@ -24,6 +24,16 @@ const SEOAnalyzer = lazy(() => import('./pages/SEOAnalyzer'));
 const AIAgentPage = lazy(() => import('./pages/AIAgentPage'));
 const AgentCommandCenter = lazy(() => import('./pages/AgentCommandCenter'));
 
+// Temporary pages - nee daggara levu anukunta
+const PlaceholderPage = ({ title }: { title: string }) => (
+  <div className="min-h-screen bg-[#050816] flex items-center justify-center text-white">
+    <div className="text-center">
+      <h1 className="text-3xl font-bold mb-2">{title}</h1>
+      <p className="text-slate-400">Coming soon...</p>
+    </div>
+  </div>
+);
+
 function PageLoader() {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -62,18 +72,23 @@ function AppRoutes() {
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route path="/" element={<RootRedirect />} />
-          <Route path="/ai-home" element={<Suspense fallback={<PageLoader />}><AIHomePage /></Suspense>} />
-          <Route path="/command-center" element={<Suspense fallback={<PageLoader />}><AgentCommandCenter /></Suspense>} />
           <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
-          <Route path="/agent" element={<Suspense fallback={<PageLoader />}><AIAgentPage /></Suspense>} />
-          <Route path="/generate" element={<Suspense fallback={<PageLoader />}><GeneratePage /></Suspense>} />
           <Route path="/upload" element={<Suspense fallback={<PageLoader />}><UploadPage /></Suspense>} />
           <Route path="/videos" element={<Suspense fallback={<PageLoader />}><VideosPage /></Suspense>} />
-          <Route path="/activity" element={<Suspense fallback={<PageLoader />}><ActivityPage /></Suspense>} />
+          <Route path="/calendar" element={<Suspense fallback={<PageLoader />}><CalendarPage /></Suspense>} />
+          <Route path="/agent" element={<Suspense fallback={<PageLoader />}><AIAgentPage /></Suspense>} />
+          <Route path="/agents" element={<Suspense fallback={<PageLoader />}><AgentCommandCenter /></Suspense>} />
+          <Route path="/command-center" element={<Suspense fallback={<PageLoader />}><AgentCommandCenter /></Suspense>} />
+          <Route path="/generate" element={<Suspense fallback={<PageLoader />}><GeneratePage /></Suspense>} />
+          <Route path="/growth" element={<Suspense fallback={<PageLoader />}><SEOAnalyzer /></Suspense>} />
+          <Route path="/seo" element={<Suspense fallback={<PageLoader />}><SEOAnalyzer /></Suspense>} />
+          <Route path="/assets" element={<Suspense fallback={<PageLoader />}><ShortsPage /></Suspense>} />
+          <Route path="/team" element={<Suspense fallback={<PageLoader />}><PlaceholderPage title="Team" /></Suspense>} />
+          <Route path="/notifications" element={<Suspense fallback={<PageLoader />}><ActivityPage /></Suspense>} />
           <Route path="/settings" element={<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>} />
           <Route path="/shorts" element={<Suspense fallback={<PageLoader />}><ShortsPage /></Suspense>} />
-          <Route path="/calendar" element={<Suspense fallback={<PageLoader />}><CalendarPage /></Suspense>} />
-          <Route path="/seo" element={<Suspense fallback={<PageLoader />}><SEOAnalyzer /></Suspense>} />
+          <Route path="/activity" element={<Suspense fallback={<PageLoader />}><ActivityPage /></Suspense>} />
+          <Route path="/ai-home" element={<Suspense fallback={<PageLoader />}><AIHomePage /></Suspense>} />
         </Route>
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
