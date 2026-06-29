@@ -14,7 +14,8 @@ export default function AuthCallback() {
         if (error) throw error;
         if (session) {
           toast.success('Signed in successfully!');
-          navigate('/dashboard', { replace: true });
+          // Navigate to root to trigger dynamic RootRedirect logic
+          navigate('/', { replace: true });
         } else {
           navigate('/login', { replace: true });
         }

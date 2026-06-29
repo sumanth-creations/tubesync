@@ -1,18 +1,21 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
-  Sparkles,
   Upload,
   Video,
-  Scissors,
   Calendar,
   BarChart3,
-  Activity,
   Settings,
   Youtube,
   LogOut,
   X,
-  MessageSquare,
+  Bot,
+  Sparkles,
+  Brain,
+  TrendingUp,
+  FolderOpen,
+  Bell,
+  Users,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -22,19 +25,26 @@ interface SidebarProps {
   connected?: boolean;
 }
 
-export function Sidebar({ isOpen, onClose, connected = false }: SidebarProps) {
+export function Sidebar({
+  isOpen,
+  onClose,
+  connected = false,
+}: SidebarProps) {
   const { user, signOut } = useAuth();
 
   const navigationItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-    { icon: MessageSquare, label: 'AI Agent', path: '/agent' },
-    { icon: Sparkles, label: 'Generate Video', path: '/generate' },
-    { icon: Upload, label: 'Upload Queue', path: '/upload' },
-    { icon: Video, label: 'My Videos', path: '/videos' },
-    { icon: Scissors, label: 'Shorts Generator', path: '/shorts' },
-    { icon: Calendar, label: 'Content Calendar', path: '/calendar' },
-    { icon: BarChart3, label: 'SEO Analyzer', path: '/seo' },
-    { icon: Activity, label: 'Activity', path: '/activity' },
+    { icon: Upload, label: 'Upload Center', path: '/upload' },
+    { icon: Video, label: 'Video Library', path: '/videos' },
+    { icon: Calendar, label: 'Content Planner', path: '/calendar' },
+    { icon: Bot, label: 'AI Command', path: '/agent' },
+    { icon: Brain, label: 'AI Agents', path: '/agents' },
+    { icon: Sparkles, label: 'AI Studio', path: '/generate' },
+    { icon: TrendingUp, label: 'Growth Center', path: '/growth' },
+    { icon: BarChart3, label: 'Analytics', path: '/seo' },
+    { icon: FolderOpen, label: 'Assets', path: '/assets' },
+    { icon: Users, label: 'Team', path: '/team' },
+    { icon: Bell, label: 'Notifications', path: '/notifications' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
 
@@ -42,44 +52,45 @@ export function Sidebar({ isOpen, onClose, connected = false }: SidebarProps) {
     <>
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/70 z-40 lg:hidden"
           onClick={onClose}
         />
       )}
 
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-[#0f0f0f] text-white flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 bg-[#050816] border-r border-white/10 text-white flex flex-col transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
-        <div className="flex items-center justify-between h-16 px-5 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center">
-              <Youtube className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold">TubeSync</span>
+        <div className="h-20 flex items-center px-6 border-b border-white/10">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-fuchsia-600 to-blue-600 flex items-center justify-center shadow-lg">
+            <Youtube className="w-6 h-6" />
           </div>
-          <button
-            onClick={onClose}
-            className="lg:hidden p-1 hover:bg-white/10 rounded"
-          >
+
+          <div className="ml-3">
+            <h1 className="font-bold text-xl">TubeSync</h1>
+            <p className="text-xs text-slate-400">AI Operating System</p>
+          </div>
+
+          <button onClick={onClose} className="ml-auto lg:hidden">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="mx-4 mt-4 mb-2">
-          <div className={`px-3 py-2 rounded-lg flex items-center gap-2 border ${
-            connected ? 'bg-green-500/10 border-green-500/20' : 'bg-amber-500/10 border-amber-500/20'
-          }`}>
-            <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-amber-500 animate-pulse'}`} />
-            <span className={`text-xs font-medium ${connected ? 'text-green-400' : 'text-amber-400'}`}>
-              {connected ? 'YouTube Connected' : 'Not Connected'}
-            </span>
+        <div className="px-4 pt-5">
+          <div className="rounded-2xl p-4 bg-gradient-to-r from-fuchsia-600/20 to-blue-600/20 border border-white/10">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold">AI Agents</span>
+              <span className="px-2 py-1 rounded-full bg-green-500/20 text-green-400 text-xs">
+                ACTIVE
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-2">
+              SEO • Research • Upload • Analytics
+            </p>
           </div>
         </div>
 
-        <nav className="flex-1 py-4 px-3">
-          <ul className="space-y-1">
+        <nav className="flex-1 px-3 py-5 overflow-y-auto">
+          <ul className="space-y-2">
             {navigationItems.map((item) => {
               const Icon = item.icon;
               return (
@@ -88,14 +99,14 @@ export function Sidebar({ isOpen, onClose, connected = false }: SidebarProps) {
                     to={item.path}
                     onClick={onClose}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
+                      `flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${
                         isActive
-                          ? 'bg-white/10 text-white'
-                          : 'text-white/60 hover:bg-white/5 hover:text-white'
+                          ? 'bg-gradient-to-r from-fuchsia-600 to-blue-600 text-white shadow-lg'
+                          : 'text-slate-400 hover:text-white hover:bg-white/5'
                       }`
                     }
                   >
-                    <Icon className="w-5 h-5 flex-shrink-0" />
+                    <Icon className="w-5 h-5" />
                     <span className="font-medium text-sm">{item.label}</span>
                   </NavLink>
                 </li>
@@ -106,28 +117,23 @@ export function Sidebar({ isOpen, onClose, connected = false }: SidebarProps) {
 
         <div className="p-4 border-t border-white/10">
           {user && (
-            <div className="flex items-center gap-3 mb-3">
-              {user.avatar_url ? (
-                <img src={user.avatar_url} alt={user.full_name || user.email} className="w-8 h-8 rounded-full object-cover" />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center">
-                  <span className="text-white text-sm font-bold">
-                    {(user.full_name || user.email).charAt(0).toUpperCase()}
-                  </span>
-                </div>
-              )}
-              <div className="min-w-0">
-                <p className="text-sm font-medium truncate">{user.full_name || user.email}</p>
-                <p className="text-xs text-white/40 truncate">{user.email}</p>
+            <div className="flex items-center gap-3 mb-4 p-3 rounded-2xl bg-white/5">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-fuchsia-600 to-blue-600 flex items-center justify-center">
+                {(user.full_name || user.email)?.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <p className="text-sm font-medium">{user.full_name || 'Creator'}</p>
+                <p className="text-xs text-slate-400">{user.email}</p>
               </div>
             </div>
           )}
+
           <button
             onClick={signOut}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/60 hover:bg-white/5 hover:text-white transition-all text-sm"
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all"
           >
             <LogOut className="w-5 h-5" />
-            <span>Sign Out</span>
+            Sign Out
           </button>
         </div>
       </aside>

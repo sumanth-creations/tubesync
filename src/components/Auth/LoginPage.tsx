@@ -18,7 +18,6 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  // Email/Password Login
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -41,7 +40,8 @@ export default function LoginPage() {
       if (signInError) throw signInError;
 
       toast.success('Login successful!');
-      navigate('/dashboard');
+      // Navigate to root to trigger dynamic RootRedirect logic
+      navigate('/', { replace: true });
     } catch (err) {
       const message =
         err instanceof Error
@@ -55,7 +55,6 @@ export default function LoginPage() {
     }
   };
 
-  // Google OAuth Login
   const handleGoogleSignIn = async () => {
     setError('');
     setLoading(true);
@@ -95,7 +94,6 @@ export default function LoginPage() {
           <p className="text-red-400 text-sm mb-3">{error}</p>
         )}
 
-        {/* Email Login */}
         <form onSubmit={handleSubmit} className="space-y-4">
 
           <div className="flex items-center bg-slate-700 p-3 rounded">
@@ -137,7 +135,6 @@ export default function LoginPage() {
 
         <div className="my-4 text-center text-slate-400">OR</div>
 
-        {/* Google Login */}
         <button
           onClick={handleGoogleSignIn}
           disabled={loading}

@@ -1,119 +1,97 @@
-import { useState, useEffect } from 'react';
+import { Suspense, lazy, useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
 import { Toaster } from 'react-hot-toast';
-import { supabase } from './lib/supabase';
-import AIHome from './pages/AIHome';
-import SettingsPage from './pages/SettingsPage';
+import { getYouTubeChannels } from './lib/api';
+import ErrorBoundary from './components/ErrorBoundary';
+
+import LoginPage from './components/Auth/LoginPage';
+import SignupPage from './components/Auth/SignupPage';
+import AuthCallback from './components/Auth/AuthCallback';
+import ProtectedRoute from './components/Auth/ProtectedRoute';
+import Layout from './components/Layout/Layout';
+
+const AIHomePage = lazy(() => import('./pages/AIHomePage'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const GeneratePage = lazy(() => import('./pages/GeneratePage'));
+const UploadPage = lazy(() => import('./pages/UploadPage'));
+const VideosPage = lazy(() => import('./pages/VideosPage'));
+const ActivityPage = lazy(() => import('./pages/ActivityPage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const ShortsPage = lazy(() => import('./pages/ShortsPage'));
+const CalendarPage = lazy(() => import('./pages/CalendarPage'));
+const SEOAnalyzer = lazy(() => import('./pages/SEOAnalyzer'));
+const AIAgentPage = lazy(() => import('./pages/AIAgentPage'));
+const AgentCommandCenter = lazy(() => import('./pages/AgentCommandCenter'));
+
 function PageLoader() {
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
       <div className="text-center">
-        <div className="w-12 h-12 border-4 border-cyan-200 border-t-cyan-600 rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-slate-400 font-medium">Loading...</p>
+        <div className="w-12 h-12 border-4 border-red-200 border-t-red-600 rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-slate-600 font-medium">Loading...</p>
       </div>
     </div>
   );
 }
 
-function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+function RootRedirect() {
+  const [loading, setLoading] = useState(true);
+  const [target, setTarget] = useState<string | null>(null);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-    } catch (err) {
-      console.error('Login error:', err);
-      alert('Login failed. Please check your credentials.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    getYouTubeChannels()
+      .then((channels) => {
+        setTarget(channels.length > 0 ? '/dashboard' : '/settings');
+      })
+      .catch(() => setTarget('/settings'))
+      .finally(() => setLoading(false));
+  }, []);
 
-  return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-      <div className="bg-slate-900 rounded-2xl p-8 w-full max-w-md border border-slate-800">
-        <h1 className="text-2xl font-bold text-white mb-6 text-center">
-          TubeSync <span className="text-cyan-400">Intelligence</span>
-        </h1>
-        <form onSubmit={handleLogin} className="space-y-4">
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-            className="w-full px-4 py-3 bg-slate-800 rounded-lg text-white border border-slate-700 focus:border-cyan-500 focus:outline-none"
-          />
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
-            className="w-full px-4 py-3 bg-slate-800 rounded-lg text-white border border-slate-700 focus:border-cyan-500 focus:outline-none"
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 rounded-lg font-medium text-white disabled:opacity-50"
-          >
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
+  if (loading) return <PageLoader />;
+  return target ? <Navigate to={target} replace /> : null;
 }
 
 function AppRoutes() {
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user);
-      setLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  if (loading) {
-    return <PageLoader />;
-  }
-
   return (
-    <Routes>
-  <Route path="/login" element={user ? <Navigate to="/" /> : <LoginPage />} />
-  <Route path="/" element={user ? <AIHome /> : <Navigate to="/login" />} />
-  <Route path="/settings" element={user ? <SettingsPage /> : <Navigate to="/login" />} />
-  <Route path="*" element={<Navigate to="/" />} />
-</Routes>
+    <>
+      <Toaster position="top-right" />
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+          <Route path="/" element={<RootRedirect />} />
+          <Route path="/ai-home" element={<Suspense fallback={<PageLoader />}><AIHomePage /></Suspense>} />
+          <Route path="/command-center" element={<Suspense fallback={<PageLoader />}><AgentCommandCenter /></Suspense>} />
+          <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
+          <Route path="/agent" element={<Suspense fallback={<PageLoader />}><AIAgentPage /></Suspense>} />
+          <Route path="/generate" element={<Suspense fallback={<PageLoader />}><GeneratePage /></Suspense>} />
+          <Route path="/upload" element={<Suspense fallback={<PageLoader />}><UploadPage /></Suspense>} />
+          <Route path="/videos" element={<Suspense fallback={<PageLoader />}><VideosPage /></Suspense>} />
+          <Route path="/activity" element={<Suspense fallback={<PageLoader />}><ActivityPage /></Suspense>} />
+          <Route path="/settings" element={<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>} />
+          <Route path="/shorts" element={<Suspense fallback={<PageLoader />}><ShortsPage /></Suspense>} />
+          <Route path="/calendar" element={<Suspense fallback={<PageLoader />}><CalendarPage /></Suspense>} />
+          <Route path="/seo" element={<Suspense fallback={<PageLoader />}><SEOAnalyzer /></Suspense>} />
+        </Route>
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </>
   );
 }
 
 export default function App() {
   const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    setReady(true);
-  }, []);
-
-  if (!ready) {
-    return <PageLoader />;
-  }
-
+  useEffect(() => { setReady(true); }, []);
+  if (!ready) return null;
   return (
-    <HashRouter>
-      <Toaster position="top-right" />
-      <AppRoutes />
-    </HashRouter>
+    <ErrorBoundary>
+      <AuthProvider>
+        <HashRouter>
+          <AppRoutes />
+        </HashRouter>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

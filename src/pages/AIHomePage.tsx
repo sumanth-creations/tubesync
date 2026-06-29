@@ -1,348 +1,140 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
-import { Send, Bot, User, Sparkles, Loader as Loader2, Wand as Wand2, Video, Upload, TrendingUp, FileVideo, Clock, Eye, EyeOff, Users, Baby, X, CircleCheck as CheckCircle2, BarChart3, Shield, Zap, TriangleAlert as AlertTriangle, Lightbulb, Target, Activity, Calendar } from 'lucide-react';
-import {
-  chatWithAgent, logActivity, generateVideoMetadata, suggestBestPostTime,
-  createVideo, uploadVideoFile, pushVideoToYouTube, getYouTubeChannels, getUserSettings,
-  scheduleAutoPublish, getVideos, type BestTimeSuggestion,
-} from '../lib/api';
-import {
-  agentOrchestrator, smartQueue, copyrightMonitor, channelIntelligence,
-  growthHub, seoAnalyzer, learningEngine,
-} from '../lib/agents';
-import type { YouTubeChannel, Video as VideoType } from '../types';
+import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 
-// Rate limit fix: Delay helper
-const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+console.log("🔥 NEW AIHomePage LOADED");
 
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  suggestions?: string[];
-  intent?: string;
-}
-
-type PublishStep = 'idle' | 'analyzing' | 'review' | 'privacy' | 'kids' | 'scheduling' | 'publishing' | 'done' | 'failed';
-type AgentTab = 'chat' | 'dashboard' | 'queue' | 'copyright' | 'growth';
-
-export default function AIAgentPage() {
-  const [activeTab, setActiveTab] = useState<AgentTab>('chat');
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: "Hey! I'm your AI assistant — ask me anything about your channel, video ideas, scripts, titles, or just chat. What's on your mind?",
-    },
-  ]);
+export default function AIHomePage() {
+  const [messages, setMessages] = useState<{role: 'user'|'assistant', content: string}[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [showChat, setShowChat] = useState(false);
 
-  const [publishStep, setPublishStep] = useState<PublishStep>('idle');
-  const [videoFiles, setVideoFiles] = useState<File[]>([]);
-  const [metadataList, setMetadataList] = useState<{ file: File; title: string; description: string; tags: string[]; hashtags: string[] }[]>([]);
-  const [analyzeProgress, setAnalyzeProgress] = useState({ done: 0, total: 0 });
-  const [privacyStatus, setPrivacyStatus] = useState<'public' | 'unlisted' | 'private' | null>(null);
-  const [madeForKids, setMadeForKids] = useState<boolean | null>(null);
-  const [bestTime, setBestTime] = useState<BestTimeSuggestion | null>(null);
-  const [channels, setChannels] = useState<YouTubeChannel[]>([]);
-  const [selectedChannelId, setSelectedChannelId] = useState('');
-  const [publishError, setPublishError] = useState('');
-  const [wasScheduled, setWasScheduled] = useState(false);
-  const [scheduledCount, setScheduledCount] = useState(0);
-  const [publishProgress, setPublishProgress] = useState({ done: 0, total: 0 });
-
-  const [dashboardLoading, setDashboardLoading] = useState(true);
-  const [queueStats, setQueueStats] = useState({ pending: 0, inProgress: 0, completed: 0, failed: 0, scheduled: 0 });
-  const [copyrightSummary, setCopyrightSummary] = useState({ total: 0, active: 0, resolved: 0, critical: 0, revenueAtRisk: 0 });
-  const [channelHealth, setChannelHealth] = useState<any>(null);
-  const [growthAnalysis, setGrowthAnalysis] = useState<any>(null);
-  const [videos, setVideos] = useState<VideoType[]>([]);
-
-  useEffect(() => {
-    getYouTubeChannels().then((list) => {
-      setChannels(list);
-      if (list[0]) setSelectedChannelId(list[0].youtube_channel_id);
-    }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const loadDashboardData = useCallback(async () => {
-    setDashboardLoading(true);
-    try {
-      const [fetchedVideos, qStats, cSummary] = await Promise.all([
-        getVideos(50),
-        smartQueue.getQueueStats(),
-        copyrightMonitor.getClaimSummary(),
-      ]);
-      setVideos(fetchedVideos);
-      setQueueStats(qStats);
-      setCopyrightSummary(cSummary);
-
-      if (channels.length > 0) {
-        const health = await channelIntelligence.generateHealthReport(channels[0].id);
-        setChannelHealth(health);
-
-        if (fetchedVideos.length > 0) {
-          const growth = await growthHub.analyzeGrowth(channels[0].id, fetchedVideos);
-          setGrowthAnalysis(growth);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load dashboard:', err);
-    } finally {
-      setDashboardLoading(false);
-    }
-  }, [channels]);
-
-  useEffect(() => {
-    if (activeTab === 'dashboard') {
-      loadDashboardData();
-    }
-  }, [activeTab, loadDashboardData]);
-
-  const handlePublishFilesSelect = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    const fileArray = Array.from(files);
-    const invalid = fileArray.find((f) => !f.type.startsWith('video/'));
-    if (invalid) {
-      setPublishError('Please select only video files');
-      return;
-    }
-
-    setVideoFiles(fileArray);
-    setPublishStep('analyzing');
-    setPublishError('');
-    setAnalyzeProgress({ done: 0, total: fileArray.length });
-
-    try {
-      const settings = await getUserSettings();
-      const niche = settings?.channel_niche || undefined;
-      const results: typeof metadataList = [];
-
-      for (let i = 0; i < fileArray.length; i++) {
-        const file = fileArray[i];
-        const meta = await generateVideoMetadata(file.name, niche);
-        results.push({ file, ...meta });
-        setAnalyzeProgress({ done: i + 1, total: fileArray.length });
-      }
-
-      setMetadataList(results);
-      setBestTime(suggestBestPostTime(niche));
-      setPublishStep('review');
-    } catch (error) {
-      const isNoKey = error instanceof Error && error.message === 'NO_API_KEY';
-      setPublishError(isNoKey
-        ? 'Add your free Gemini API key in Settings first to use this feature.'
-        : 'Could not analyze the videos. Please try again.');
-      setPublishStep('failed');
-    }
+  const sendMessage = async (text: string) => {
+    if (!text.trim()) return;
+    setShowChat(true);
+    const userMsg = { role: 'user' as const, content: text };
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    setLoading(true);
+    
+    setTimeout(() => {
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: `Got it! Creating your automation for: "${text}". This would connect to your n8n workflow.` 
+      }]);
+      setLoading(false);
+    }, 1000);
   };
 
-  const handleConfirmPrivacy = (status: 'public' | 'unlisted' | 'private') => {
-    setPrivacyStatus(status);
-    setPublishStep('kids');
-  };
-
-  const handleConfirmKids = (isKids: boolean) => {
-    setMadeForKids(isKids);
-    setPublishStep('scheduling');
-  };
-
-  const handleScheduleBatch = async () => {
-    if (!bestTime || metadataList.length === 0 || !selectedChannelId || !privacyStatus) return;
-    setPublishStep('publishing');
-    setPublishProgress({ done: 0, total: metadataList.length });
-    try {
-      let scheduled = 0;
-      for (let i = 0; i < metadataList.length; i++) {
-        const meta = metadataList[i];
-        const video = await createVideo({
-          title: meta.title, description: meta.description, tags: meta.tags,
-          hashtags: meta.hashtags, privacy_status: privacyStatus, status: 'draft',
-        });
-        await uploadVideoFile(video.id, meta.file, undefined, meta.file.name);
-        const targetTime = computeNextTargetDate(bestTime.dayOfWeek, bestTime.hour, i);
-        await scheduleAutoPublish(video.id, selectedChannelId, targetTime);
-        await logActivity({
-          type: 'video_scheduled', title: 'Video added to auto-publish queue',
-          description: `${meta.title} — ${targetTime.toLocaleString()}`, video_id: video.id,
-        }).catch(() => {});
-        scheduled++;
-        setPublishProgress({ done: scheduled, total: metadataList.length });
-      }
-      setScheduledCount(scheduled);
-      setWasScheduled(true);
-      setPublishStep('done');
-    } catch (error) {
-      setPublishError(error instanceof Error ? error.message : 'Scheduling failed');
-      setPublishStep('failed');
-    }
-  };
-
-  const handlePublishNow = async () => {
-    if (metadataList.length === 0 || !selectedChannelId || !privacyStatus) return;
-    setPublishStep('publishing');
-    setPublishProgress({ done: 0, total: metadataList.length });
-    try {
-      const [first, ...rest] = metadataList;
-      const firstVideo = await createVideo({
-        title: first.title, description: first.description, tags: first.tags,
-        hashtags: first.hashtags, privacy_status: privacyStatus, status: 'draft',
-      });
-      await uploadVideoFile(firstVideo.id, first.file, undefined, first.file.name);
-      await pushVideoToYouTube(firstVideo.id, selectedChannelId);
-      await logActivity({ type: 'video_uploaded', title: 'Auto-Publish uploaded', description: first.title, video_id: firstVideo.id }).catch(() => {});
-      setPublishProgress({ done: 1, total: metadataList.length });
-
-      let scheduled = 0;
-      if (bestTime) {
-        for (let i = 0; i < rest.length; i++) {
-          const meta = rest[i];
-          const video = await createVideo({
-            title: meta.title, description: meta.description, tags: meta.tags,
-            hashtags: meta.hashtags, privacy_status: privacyStatus, status: 'draft',
-          });
-          await uploadVideoFile(video.id, meta.file, undefined, meta.file.name);
-          const targetTime = computeNextTargetDate(bestTime.dayOfWeek, bestTime.hour, i + 1);
-          await scheduleAutoPublish(video.id, selectedChannelId, targetTime);
-          scheduled++;
-          setPublishProgress({ done: 1 + scheduled, total: metadataList.length });
-        }
-      }
-      setScheduledCount(scheduled);
-      setWasScheduled(rest.length > 0);
-      setPublishStep('done');
-    } catch (error) {
-      setPublishError(error instanceof Error ? error.message : 'Publish failed');
-      setPublishStep('failed');
-    }
-  };
-
-  const handleResetPublishAssistant = () => {
-    setPublishStep('idle');
-    setVideoFiles([]);
-    setMetadataList([]);
-    setPrivacyStatus(null);
-    setMadeForKids(null);
-    setBestTime(null);
-    setPublishError('');
-    setScheduledCount(0);
-  };
-
-  function computeNextTargetDate(dayOfWeek: number, hour: number, dayOffset = 0): Date {
-    const result = new Date();
-    const daysUntil = (dayOfWeek - result.getDay() + 7) % 7 || 7;
-    result.setDate(result.getDate() + daysUntil + dayOffset);
-    result.setHours(hour, 0, 0, 0);
-    return result;
+  if (showChat) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950/10 to-slate-950 text-white">
+        <div className="max-w-4xl mx-auto p-4 h-screen flex flex-col">
+          <div className="flex-1 overflow-y-auto space-y-4 py-6">
+            {messages.map((msg, i) => (
+              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[80%] px-4 py-3 rounded-2xl ${
+                  msg.role === 'user' 
+                    ? 'bg-gradient-to-r from-purple-600 to-blue-600' 
+                    : 'bg-slate-800/60 backdrop-blur-xl border border-slate-700/50'
+                }`}>
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+            {loading && <div className="text-slate-400">Thinking...</div>}
+          </div>
+          <div className="flex gap-2 pb-4">
+            <input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && sendMessage(input)}
+              placeholder="Ask anything..."
+              className="flex-1 px-4 py-3 rounded-xl bg-slate-800/60 border border-slate-700/50 outline-none focus:border-purple-500/50"
+            />
+            <button
+              onClick={() => sendMessage(input)}
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 font-semibold"
+            >
+              Send
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
-  const handleSend = async () => {
-  if (!input.trim() || loading) return;
-
-  setLoading(true);
-  
-  try {
-    const settings = await getUserSettings();
-    if (!settings?.gemini_api_key) throw new Error("API Key missing!");
-
-    // API URL ni ikkada double check cheyyi
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${settings.gemini_api_key}`;
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{ text: input }]
-        }]
-      }),
-    });
-
-    // Server em chepthundo ikkada clear ga telustundi
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("Server Error Details:", errorData); // idi chudu
-      throw new Error(`Error ${response.status}: ${errorData.error.message}`);
-    }
-
-    const data = await response.json();
-    // Success message...
-  } catch (err) {
-    console.error("Catch block error:", err);
-  } finally {
-    setLoading(false);
-  }
-};
-  const handleQuickAction = (action: string) => {
-    setInput(action);
-    setTimeout(() => handleSend(), 100);
-  };
-
-  const quickActions = [
-    { icon: Sparkles, label: 'Generate Ideas', prompt: 'Generate video ideas for my channel' },
-    { icon: Wand2, label: 'Create Titles', prompt: 'Create SEO-optimized titles' },
-    { icon: Target, label: 'Analyze Growth', prompt: 'How is my channel performing?' },
-    { icon: Calendar, label: 'Best Upload Time', prompt: 'When should I upload?' },
-    { icon: Shield, label: 'Safety Check', prompt: 'Any copyright issues?' },
-  ];
-
-  const tabs = [
-    { id: 'chat' as AgentTab, label: 'Chat', icon: Bot },
-    { id: 'dashboard' as AgentTab, label: 'Dashboard', icon: BarChart3 },
-    { id: 'queue' as AgentTab, label: 'Queue', icon: Upload },
-    { id: 'copyright' as AgentTab, label: 'Copyright', icon: Shield },
-  ];
-
-  const metadata = metadataList[0];
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col">
-       {/* UI code as it was */}
-       <div className="mb-4">
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <Bot className="w-7 h-7 text-purple-600" /> AI Agent Dashboard
-        </h1>
-      </div>
-      {/* Tab Navigation */}
-      <div className="flex gap-2 mb-4 border-b border-slate-200">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.id
-                ? 'border-purple-600 text-purple-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950/10 to-slate-950 text-white">
+      <div className="max-w-6xl mx-auto px-6 py-20">
+        <div className="text-center mb-12">
+          <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-purple-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
+            Your AI YouTube Automation Agent
+          </h1>
+          <p className="text-xl text-slate-400 max-w-2xl mx-auto">
+            From idea to upload. Tell AI what to create, and watch it handle research, scripts, and publishing.
+          </p>
+        </div>
+
+        <div className="max-w-3xl mx-auto mb-12">
+          <div className="relative group">
+            <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl blur opacity-25 group-hover:opacity-40 transition"></div>
+            <div className="relative bg-slate-900/60 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-2">
+              <textarea
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMessage(input))}
+                placeholder="Describe your video idea... e.g. 'Create a tutorial on React hooks'"
+                className="w-full bg-transparent px-6 py-4 text-lg outline-none resize-none"
+                rows={3}
+              />
+              <div className="flex justify-between items-center px-4 pb-2">
+                <span className="text-xs text-slate-500">Press Enter to send</span>
+                <button
+                  onClick={() => sendMessage(input)}
+                  disabled={!input.trim() || loading}
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 font-semibold disabled:opacity-50 hover:shadow-lg hover:shadow-purple-500/50 transition-all"
+                >
+                  Generate
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-4 max-w-3xl mx-auto mb-16">
+          <button 
+            onClick={() => sendMessage("Create a viral tech tutorial video")}
+            className="p-6 rounded-xl bg-slate-800/40 backdrop-blur-xl border border-slate-700/50 hover:border-purple-500/50 text-left group transition-all"
           >
-            <tab.icon className="w-4 h-4" />
-            {tab.label}
+            <div className="text-2xl mb-2">🎬</div>
+            <div className="font-semibold mb-1">Create Video from Idea</div>
+            <div className="text-sm text-slate-400">AI writes, edits, and publishes</div>
           </button>
-        ))}
+          <button 
+            onClick={() => sendMessage("Analyze my YouTube channel performance")}
+            className="p-6 rounded-xl bg-slate-800/40 backdrop-blur-xl border border-slate-700/50 hover:border-blue-500/50 text-left group transition-all"
+          >
+            <div className="text-2xl mb-2">📊</div>
+            <div className="font-semibold mb-1">Analyze Channel</div>
+            <div className="text-sm text-slate-400">Get insights & growth tips</div>
+          </button>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          {[
+            { icon: '🤖', title: 'AI Scriptwriting', desc: 'Generate engaging scripts in seconds' },
+            { icon: '🎨', title: 'Auto Editing', desc: 'Smart cuts, captions, and B-roll' },
+            { icon: '🚀', title: 'One-Click Publish', desc: 'Schedule & upload to YouTube' },
+          ].map((f, i) => (
+            <div key={i} className="p-6 rounded-xl bg-slate-800/30 backdrop-blur-xl border border-slate-700/30">
+              <div className="text-3xl mb-3">{f.icon}</div>
+              <div className="font-semibold mb-2">{f.title}</div>
+              <div className="text-sm text-slate-400">{f.desc}</div>
+            </div>
+          ))}
+        </div>
       </div>
-      {activeTab === 'chat' && (
-        <>
-          <div className="flex-1 overflow-y-auto bg-white rounded-2xl border border-slate-200 p-4 mb-4">
-             {/* Chat messages display */}
-             {messages.map((message) => (
-                <div key={message.id} className={`flex gap-3 ${message.role === 'assistant' ? 'flex-row' : 'flex-row-reverse'}`}>
-                  {/* ... */}
-                </div>
-             ))}
-             {loading && <Loader2 className="animate-spin" />}
-             <div ref={messagesEndRef} />
-          </div>
-          <div className="flex gap-2">
-            <input type="text" value={input} onChange={(e) => setInput(e.target.value)} className="flex-1 px-4 py-3 border rounded-xl" />
-            <button onClick={handleSend} className="px-6 py-3 bg-purple-600 text-white rounded-xl">Send</button>
-          </div>
-        </>
-      )}
     </div>
   );
 }
