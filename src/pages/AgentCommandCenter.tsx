@@ -5,7 +5,7 @@ import {
   getAgentStates,
   initializeAgentStates,
 } from '../lib/agents';
-import { uploadVideo, getUserSettings } from '../lib/api';
+import { uploadVideoFile, pushVideoToYouTube, getYouTubeChannels } from '../lib/api';
 
 interface AgentStatus {
   id: string;
@@ -29,7 +29,7 @@ interface NextVideo {
   ai_title: string;
   ai_reason: string;
   status: 'queued' | 'analyzing' | 'ready' | 'uploading';
-  video_file?: File;
+  video_id?: string;
 }
 
 const agentIcons: Record<string, string> = {
@@ -53,6 +53,7 @@ export default function AgentCommandCenter() {
   const [nextVideo, setNextVideo] = useState<NextVideo | null>(null);
   const [queueCount, setQueueCount] = useState(32);
   const [countdown, setCountdown] = useState('');
+  const [youtubeChannelId, setYoutubeChannelId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -79,12 +80,20 @@ export default function AgentCommandCenter() {
   const loadCommandCenter = async () => {
     try {
       await initializeAgentStates();
-      const agentStates = await getAgentStates();
-      setAgents(agentStates as any);
+      const [agentStates, channels] = await Promise.all([
+        getAgentStates(),
+        getYouTubeChannels(),
+      ]);
 
-      // Mock data - nee backend nunchi ravali
+      setAgents(agentStates as any);
+      
+      if (channels.length > 0) {
+        setYoutubeChannelId(channels[0].id);
+      }
+
       setNextVideo({
         id: '1',
+        video_id: 'mock-video-id',
         title: 'Docker lo GPU Setup Telugu',
         thumbnail_url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
         scheduled_time: new Date(Date.now() + 3 * 3600000).toISOString(),
@@ -102,32 +111,43 @@ export default function AgentCommandCenter() {
   };
 
   const handleUploadNow = async () => {
-    // File select cheyyamani prompt
-    if (!nextVideo?.video_file) {
-      fileInputRef.current?.click();
+    if (!youtubeChannelId) {
+      toast.error('YouTube connect cheyyaledhu! Settings ki velli connect chey.');
+      navigate('/settings');
       return;
     }
 
+    if (!nextVideo?.video_id) {
+      toast.error('Video ID ledu. Mundhu video create chey.');
+      navigate('/upload');
+      return;
+    }
+
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file ||!nextVideo?.video_id ||!youtubeChannelId) return;
+
     setUploading(true);
-    const toastId = toast.loading('Uploading to YouTube...');
+    const toastId = toast.loading('Uploading video to storage...');
 
     try {
-      const settings = await getUserSettings();
-      if (!settings?.youtube_connected) {
-        throw new Error('YouTube connect cheyyaledhu! Settings ki velli connect chey.');
-      }
+      await uploadVideoFile(
+        nextVideo.video_id,
+        file,
+        (percent) => {
+          toast.loading(`Uploading: ${percent}%`, { id: toastId });
+        }
+      );
 
-      const formData = new FormData();
-      formData.append('video', nextVideo.video_file);
-      formData.append('title', nextVideo.ai_title);
-      formData.append('description', nextVideo.ai_reason);
+      toast.loading('Starting YouTube upload...', { id: toastId });
 
-      const result = await uploadVideo(formData);
+      await pushVideoToYouTube(nextVideo.video_id, youtubeChannelId);
       
-      toast.success('Upload Success! 🎉', { id: toastId });
-      console.log('YouTube URL:', result.video_url);
+      toast.success('Upload Started! YouTube ki velthondi 🎉', { id: toastId });
       
-      // Queue update
       setQueueCount(prev => prev - 1);
       setNextVideo(null);
       
@@ -136,16 +156,7 @@ export default function AgentCommandCenter() {
       console.error(error);
     } finally {
       setUploading(false);
-    }
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && nextVideo) {
-      setNextVideo({...nextVideo, video_file: file });
-      toast.success(`Selected: ${file.name}`);
-      // Auto upload after file select
-      setTimeout(() => handleUploadNow(), 500);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
