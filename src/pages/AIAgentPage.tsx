@@ -51,8 +51,8 @@ export default function AIAgentPage() {
         throw new Error("API Key ledhu! Settings lo add cheyyi.");
       }
 
-      // FIX: Changed to v1 API and added generationConfig
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${settings.gemini_api_key}`, {
+      // FIX: Updated to gemini-2.5-flash
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${settings.gemini_api_key}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -111,7 +111,7 @@ export default function AIAgentPage() {
               <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
                 AI Assistant
               </h1>
-              <p className="text-slate-500 text-sm">Powered by Gemini 1.5 Flash</p>
+              <p className="text-slate-500 text-sm">Powered by Gemini 2.5 Flash</p>
             </div>
             <div className="ml-auto">
               <div className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium">
@@ -131,7 +131,7 @@ export default function AIAgentPage() {
                 <div className={`flex items-start gap-3 ${m.role === 'user'? 'flex-row-reverse' : ''}`}>
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                     m.role === 'user'
-                    ? 'bg-gradient-to-br from-blue-600 to-cyan-600'
+                   ? 'bg-gradient-to-br from-blue-600 to-cyan-600'
                       : 'bg-gradient-to-br from-purple-600 to-pink-600'
                   }`}>
                     {m.role === 'user'? '👤' : <Sparkles className="w-4 h-4" />}
@@ -139,7 +139,7 @@ export default function AIAgentPage() {
                   <div>
                     <div className={`rounded-2xl px-5 py-3 ${
                       m.role === 'user'
-                      ? 'bg-gradient-to-br from-blue-600 to-cyan-600 text-white'
+                     ? 'bg-gradient-to-br from-blue-600 to-cyan-600 text-white'
                         : 'bg-slate-800/50 border border-slate-700/50 text-slate-100'
                     }`}>
                       <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.content}</p>
