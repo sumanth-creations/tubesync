@@ -111,7 +111,7 @@ export async function refreshYouTubeToken(channelId: string): Promise<void> {
 // ============ Videos ============
 export async function createVideo(video: Partial<Video>): Promise<Video> {
   const { data, error } = await supabase.from('videos').insert({
-    ...video,
+   ...video,
     status: video.status || 'draft',
   }).select().single();
   if (error) throw error;
@@ -120,11 +120,11 @@ export async function createVideo(video: Partial<Video>): Promise<Video> {
 
 export async function updateVideo(id: string, updates: Partial<Video>): Promise<Video> {
   const { data, error } = await supabase
-    .from('videos')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single();
+   .from('videos')
+   .update({...updates, updated_at: new Date().toISOString() })
+   .eq('id', id)
+   .select()
+   .single();
   if (error) throw error;
   return data;
 }
@@ -144,10 +144,10 @@ export async function deleteVideo(id: string): Promise<void> {
 
 export async function getScheduledVideos(): Promise<Video[]> {
   const { data, error } = await supabase
-    .from('videos')
-    .select('*')
-    .not('scheduled_publish_at', 'is', null)
-    .order('scheduled_publish_at', { ascending: true });
+   .from('videos')
+   .select('*')
+   .not('scheduled_publish_at', 'is', null)
+   .order('scheduled_publish_at', { ascending: true });
   if (error) throw error;
   return data || [];
 }
@@ -155,26 +155,24 @@ export async function getScheduledVideos(): Promise<Video[]> {
 // ============ Upload Queue ============
 export async function getUploadQueue(): Promise<UploadQueue[]> {
   const { data, error } = await supabase
-    .from('upload_queue')
-    .select('*, videos(*)')
-    .order('priority', { ascending: false })
-    .order('created_at', { ascending: true });
+   .from('upload_queue')
+   .select('*, videos(*)')
+   .order('priority', { ascending: false })
+   .order('created_at', { ascending: true });
   if (error) throw error;
   return data || [];
 }
 
 export async function queueForUpload(videoId: string, priority = 0): Promise<UploadQueue> {
   const { data, error } = await supabase
-    .from('upload_queue')
-    .insert({ video_id: videoId, priority })
-    .select()
-    .single();
+   .from('upload_queue')
+   .insert({ video_id: videoId, priority })
+   .select()
+   .single();
   if (error) throw error;
   return data;
 }
 
-// Uploads a video file to Supabase Storage under the current user's folder
-// and records the path on the video row. Returns the storage path.
 export async function uploadVideoFile(
   videoId: string,
   file: File | Blob,
@@ -184,37 +182,33 @@ export async function uploadVideoFile(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not signed in');
 
-  const name = file instanceof File ? file.name : fileName;
+  const name = file instanceof File? file.name : fileName;
   const type = file.type || 'video/mp4';
   const safeName = name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const path = `${user.id}/${videoId}/${Date.now()}_${safeName}`;
 
-  // Supabase JS storage upload doesn't expose progress natively in v2,
-  // so we report a simple start/finish signal to the caller.
   onProgress?.(0);
   const { error: uploadError } = await supabase.storage
-    .from('video-files')
-    .upload(path, file, { upsert: true, contentType: type });
+   .from('video-files')
+   .upload(path, file, { upsert: true, contentType: type });
   if (uploadError) throw uploadError;
   onProgress?.(100);
 
   const { error: updateError } = await supabase
-    .from('videos')
-    .update({ file_path: path, status: 'ready' })
-    .eq('id', videoId);
+   .from('videos')
+   .update({ file_path: path, status: 'ready' })
+   .eq('id', videoId);
   if (updateError) throw updateError;
 
   return path;
 }
 
-// Queues the video for upload AND immediately invokes the youtube-upload
-// edge function to process it (rather than waiting for a poller).
 export async function pushVideoToYouTube(videoId: string, youtubeChannelId: string): Promise<void> {
   await queueForUpload(videoId);
   const { error: updateError } = await supabase
-    .from('videos')
-    .update({ status: 'queued', youtube_channel_id: youtubeChannelId })
-    .eq('id', videoId);
+   .from('videos')
+   .update({ status: 'queued', youtube_channel_id: youtubeChannelId })
+   .eq('id', videoId);
   if (updateError) throw updateError;
 
   const { data: { session } } = await supabase.auth.getSession();
@@ -224,8 +218,6 @@ export async function pushVideoToYouTube(videoId: string, youtubeChannelId: stri
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${session?.access_token}`,
     },
-    // Pass youtubeChannelId explicitly so the function doesn't rely on
-    // having just read back the row we wrote a moment ago.
     body: JSON.stringify({ videoId, youtubeChannelId }),
   });
   if (!res.ok) {
@@ -296,7 +288,7 @@ export async function generateAIContent(title: string, format: 'short' | 'medium
   ];
 
   return {
-    titles: format === 'short' ? shortPrompts : longPrompts,
+    titles: format === 'short'? shortPrompts : longPrompts,
     descriptions: descs,
     tags,
     hashtags,
@@ -440,7 +432,7 @@ export async function getDashboardStats(): Promise<{
   };
 }
 
-// ============ BYOK Gemini API Key (free tier, user's own key) ============
+// ============ BYOK Gemini API Key ============
 export async function getUserSettings(): Promise<{ gemini_api_key: string | null; channel_niche: string | null } | null> {
   const { data, error } = await supabase.from('user_settings').select('gemini_api_key, channel_niche').maybeSingle();
   if (error) throw error;
@@ -451,8 +443,8 @@ export async function saveGeminiApiKey(apiKey: string): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not signed in');
   const { error } = await supabase
-    .from('user_settings')
-    .upsert({ user_id: user.id, gemini_api_key: apiKey, updated_at: new Date().toISOString() });
+   .from('user_settings')
+   .upsert({ user_id: user.id, gemini_api_key: apiKey, updated_at: new Date().toISOString() });
   if (error) throw error;
 }
 
@@ -460,8 +452,8 @@ export async function saveChannelNiche(niche: string): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not signed in');
   const { error } = await supabase
-    .from('user_settings')
-    .upsert({ user_id: user.id, channel_niche: niche, updated_at: new Date().toISOString() });
+   .from('user_settings')
+   .upsert({ user_id: user.id, channel_niche: niche, updated_at: new Date().toISOString() });
   if (error) throw error;
 }
 
@@ -470,7 +462,6 @@ async function callAiGenerate(
   apiKey: string,
   params: Record<string, unknown>
 ): Promise<any> {
-  // Call Gemini API directly instead of non-existent edge function
   const model = 'gemini-2.0-flash';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
@@ -485,28 +476,28 @@ Format: ${params.format || 'short'}
 
 Provide as JSON:
 {
-  "titles": ["title1", "title2", ...],
-  "descriptions": ["desc1", ...],
-  "tags": ["tag1", ...],
-  "hashtags": ["#tag1", ...],
-  "seo_keywords": ["kw1", ...],
-  "thumbnail_ideas": ["idea1", ...],
-  "scripts": ["script1", ...],
-  "video_ideas": ["idea1", ...],
-  "trending_topics": ["topic1", ...]
+  "titles": ["title1", "title2",...],
+  "descriptions": ["desc1",...],
+  "tags": ["tag1",...],
+  "hashtags": ["#tag1",...],
+  "seo_keywords": ["kw1",...],
+  "thumbnail_ideas": ["idea1",...],
+  "scripts": ["script1",...],
+  "video_ideas": ["idea1",...],
+  "trending_topics": ["topic1",...]
 }`;
       break;
 
     case 'video_metadata':
       systemPrompt = 'You are a YouTube SEO expert. Return ONLY valid JSON.';
-      userPrompt = `Generate YouTube video metadata for filename: "${params.fileName}"${params.niche ? ` in niche: "${params.niche}"` : ''}
+      userPrompt = `Generate YouTube video metadata for filename: "${params.fileName}"${params.niche? ` in niche: "${params.niche}"` : ''}
 
 Return ONLY this JSON format:
 {
   "title": "A compelling click-worthy title under 60 chars",
   "description": "SEO-optimized description 150-300 chars",
-  "tags": ["tag1", "tag2", ...10 relevant tags],
-  "hashtags": ["#hashtag1", ...5 hashtags]
+  "tags": ["tag1", "tag2",...10 relevant tags],
+  "hashtags": ["#hashtag1",...5 hashtags]
 }`;
       break;
 
@@ -517,10 +508,10 @@ Return ONLY this JSON format:
 Return ONLY this JSON format:
 {
   "title": "Compelling title about the keyword",
-  "facts": [{"number": 1, "fact": "Interesting fact"}, ...5 facts],
+  "facts": [{"number": 1, "fact": "Interesting fact"},...5 facts],
   "social_caption": "Short engaging caption",
   "youtube_description": "YouTube description",
-  "image_search_queries": ["query1", ...3 queries]
+  "image_search_queries": ["query1",...3 queries]
 }`;
       break;
 
@@ -538,8 +529,6 @@ Return ONLY this JSON format:
     generationConfig: { maxOutputTokens: 2048, temperature: 0.7 },
   };
 
-  console.log('[AI Generate] Request:', { mode, model, url: url.replace(apiKey, 'REDACTED') });
-
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -547,8 +536,6 @@ Return ONLY this JSON format:
   });
 
   const responseText = await response.text();
-  console.log('[AI Generate] Response status:', response.status);
-  console.log('[AI Generate] Response body:', responseText.substring(0, 500));
 
   if (!response.ok) {
     let errorMsg = `AI API error: ${response.status}`;
@@ -569,9 +556,7 @@ Return ONLY this JSON format:
   }
 
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  console.log('[AI Generate] Extracted text:', text.substring(0, 300));
 
-  // Parse JSON from response
   try {
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
@@ -584,9 +569,6 @@ Return ONLY this JSON format:
   }
 }
 
-// Real AI content generation via the user's own Gemini key.
-// Throws Error('NO_API_KEY') if the user hasn't added a key yet —
-// callers should catch this and prompt the user to add one in Settings.
 export async function generateAIContentReal(title: string, format: 'short' | 'medium' | 'long' = 'short'): Promise<AIContent> {
   const settings = await getUserSettings();
   const apiKey = settings?.gemini_api_key;
@@ -605,13 +587,10 @@ export async function generateVideoMetadata(fileName: string, niche?: string): P
   return callAiGenerate('video_metadata', apiKey, { fileName, niche: niche || settings?.channel_niche || undefined });
 }
 
-// General best-time-to-post benchmarks (industry research, 2026), used as a
-// starting point until a channel has enough of its own YouTube Analytics
-// data. Times are in the viewer's local time.
 export interface BestTimeSuggestion {
   label: string;
-  dayOfWeek: number; // 0 = Sunday ... 6 = Saturday
-  hour: number; // 24h local time
+  dayOfWeek: number;
+  hour: number;
   reason: string;
 }
 
@@ -619,7 +598,6 @@ export function suggestBestPostTime(niche?: string): BestTimeSuggestion {
   const n = (niche || '').toLowerCase();
   const now = new Date();
 
-  // Niche-specific overrides based on general industry research
   if (n.includes('game') || n.includes('gaming')) {
     return nextOccurrence(4, 19, 'Gaming audiences are most active weekday evenings (around 7 PM)');
   }
@@ -630,8 +608,6 @@ export function suggestBestPostTime(niche?: string): BestTimeSuggestion {
     return nextOccurrence(3, 7, 'Fitness content performs best around typical morning workout times (~7 AM)');
   }
 
-  // General benchmark: Wednesday/Thursday afternoon, 2-4 PM, posting a
-  // couple hours ahead of the evening engagement peak.
   return nextOccurrence(4, 15, 'Thursday afternoon (around 3 PM) is a strong general benchmark — posting ahead of the evening engagement peak');
 
   function nextOccurrence(targetDay: number, hour: number, reason: string): BestTimeSuggestion {
@@ -656,9 +632,6 @@ export interface FactsContent {
   image_search_queries: string[];
 }
 
-// Schedules a video to be auto-published by the server-side cron worker
-// (auto-publish-worker), which runs independently of the browser. The
-// video file must already be uploaded to Storage before calling this.
 export async function scheduleAutoPublish(
   videoId: string,
   youtubeChannelId: string,
@@ -698,66 +671,8 @@ export async function chatWithAgent(
   const result = await callAiGenerate('chat', apiKey, { message, history });
   return result.reply;
 }
-// ============ AI Agent Functions - Add at end of api.ts ============
 
-export const getUserVideos = async (): Promise<Video[]> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not signed in');
-  
-  const { data, error } = await supabase
-   .from('videos')
-   .select('*')
-   .eq('user_id', user.id)
-   .order('created_at', { ascending: false })
-   .limit(50);
-    
-  if (error) throw error;
-  return data || [];
-};
-
-export const getChannelStats = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not signed in');
-
-  // Get videos with stats
-  const { data: videos, error: vidError } = await supabase
-   .from('videos')
-   .select('view_count, like_count, title')
-   .eq('user_id', user.id);
-  
-  if (vidError) throw vidError;
-
-  const totalViews = videos?.reduce((sum, v) => sum + (v.view_count || 0), 0) || 0;
-  const totalLikes = videos?.reduce((sum, v) => sum + (v.like_count || 0), 0) || 0;
-  const avgViews = videos?.length? Math.round(totalViews / videos.length) : 0;
-  const videoCount = videos?.length || 0;
-
-  // Get YouTube channels count
-  const { count: channelCount } = await supabase
-   .from('youtube_channels')
-   .select('*', { count: 'exact', head: true })
-   .eq('user_id', user.id);
-
-  // Get worst/best video
-  const sortedByViews = [...(videos || [])].sort((a, b) => (a.view_count || 0) - (b.view_count || 0));
-  const worstVideo = sortedByViews[0];
-  const bestVideo = sortedByViews[sortedByViews.length - 1];
-
-  return {
-    totalViews,
-    totalLikes,
-    avgViews,
-    videoCount,
-    channelCount: channelCount || 0,
-    subscribers: 0, // TODO: Sync from YouTube API
-    worstVideo: worstVideo? { title: worstVideo.title, views: worstVideo.view_count || 0 } : null,
-    bestVideo: bestVideo? { title: bestVideo.title, views: bestVideo.view_count || 0 } : null
-  };
-};
-
-// updateVideo already exists at line 97, no need to add
-// ============ AI Agent Functions ============
-
+// ============ AI Agent Functions - ONLY ONE COPY ============
 export const getUserVideos = async (): Promise<Video[]> => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not signed in');
