@@ -64,38 +64,63 @@ export default function AIAgentPage() {
     for (const file of Array.from(files)) {
       if (!file.type.startsWith('video/')) continue;
 
-      const duration = await getVideoDuration(file);
-      const filePath = `pending/${Date.now()}_${file.name}`;
+      try {
+        const duration = await getVideoDuration(file);
 
-      const { error: uploadError } = await supabase.storage
-     .from('videos')
-     .upload(filePath, file);
+        // FIX: Sanitize filename - $ () spaces anni remove
+        const cleanName = file.name
+         .replace(/[^a-zA-Z0-9.-]/g, '_') // special chars -> _
+         .replace(/_+/g, '_') // multiple _ -> single _
+         .replace(/^_+|_+$/g, ''); // trim _
 
-      if (uploadError) {
-        toast.error(`${file.name} upload failed`);
-        continue;
+        const filePath = `pending/${Date.now()}_${cleanName}`;
+
+        const { error: uploadError } = await supabase.storage
+       .from('videos')
+       .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          toast.error(`${file.name} upload failed: ${uploadError.message}`);
+          continue;
+        }
+
+        const { error: dbError } = await supabase.from('upload_queue').insert({
+          filename: file.name, // original name
+          file_path: filePath, // clean name for storage
+          duration: duration,
+          is_long_video: duration > 60,
+          scheduled_for: getBestUploadTime(),
+          status: 'pending'
+        });
+
+        if (dbError) {
+          console.error('DB error:', dbError);
+          toast.error(`DB insert failed for ${file.name}`);
+          continue;
+        }
+
+        count++;
+      } catch (err: any) {
+        console.error('Processing error:', err);
+        toast.error(`Error processing ${file.name}: ${err.message}`);
       }
-
-      await supabase.from('upload_queue').insert({
-        filename: file.name,
-        file_path: filePath,
-        duration: duration,
-        is_long_video: duration > 60,
-        scheduled_for: getBestUploadTime()
-      });
-      count++;
     }
 
     toast.success(`${count} videos queue lo add ayyayi. Roju 1 video best time lo upload avtadi`);
     setUploading(false);
     loadQueueCount();
+    e.target.value = ''; // reset input
   };
 
   const loadQueueCount = async () => {
     const { count } = await supabase
-   .from('upload_queue')
-   .select('*', { count: 'exact', head: true })
-   .eq('status', 'pending');
+  .from('upload_queue')
+  .select('*', { count: 'exact', head: true })
+  .eq('status', 'pending');
     setQueueCount(count || 0);
   };
 
