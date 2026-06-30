@@ -155,12 +155,12 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
         throw new Error("API Key ledhu! Settings lo add cheyyi.");
       }
 
-      // FINAL: gemini-2.5-flash
+      // FIXED: v1 API format - systemInstruction camelCase
       const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${settings.gemini_api_key}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          system_instruction: {
+          systemInstruction: {
             parts: [{
               text: `You are TubeSync AI Agent. You manage the user's entire YouTube channel.
               Be proactive, use functions to get real data. Always give specific actionable advice.
@@ -201,12 +201,12 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
 
         const result = await executeFunction(name, args);
 
-        // FINAL: gemini-2.5-flash
+        // FIXED: v1 API format
         const finalResponse = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${settings.gemini_api_key}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            system_instruction: {
+            systemInstruction: {
               parts: [{ text: `You are TubeSync AI Agent. User context: ${userContext}` }]
             },
             contents: [
@@ -282,9 +282,9 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
                 <div className={`flex items-start gap-3 ${m.role === 'user'? 'flex-row-reverse' : ''}`}>
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                     m.role === 'user'
-       ? 'bg-gradient-to-br from-blue-600 to-cyan-600'
+    ? 'bg-gradient-to-br from-blue-600 to-cyan-600'
                       : m.role === 'function'
-       ? 'bg-gradient-to-br from-amber-600 to-orange-600'
+    ? 'bg-gradient-to-br from-amber-600 to-orange-600'
                       : 'bg-gradient-to-br from-purple-600 to-pink-600'
                   }`}>
                     {m.role === 'user'? '👤' : m.role === 'function'? <Zap className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
@@ -292,9 +292,9 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
                   <div>
                     <div className={`rounded-2xl px-5 py-3 ${
                       m.role === 'user'
-       ? 'bg-gradient-to-br from-blue-600 to-cyan-600 text-white'
+    ? 'bg-gradient-to-br from-blue-600 to-cyan-600 text-white'
                         : m.role === 'function'
-       ? 'bg-amber-900/30 border border-amber-700/50 text-amber-200'
+    ? 'bg-amber-900/30 border border-amber-700/50 text-amber-200'
                         : 'bg-slate-800/50 border border-slate-700/50 text-slate-100'
                     }`}>
                       <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.content}</p>
