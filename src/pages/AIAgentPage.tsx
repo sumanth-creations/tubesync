@@ -155,8 +155,8 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
         throw new Error("API Key ledhu! Settings lo add cheyyi.");
       }
 
-      // FIXED: gemini-1.5-flash-latest
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${settings.gemini_api_key}`, {
+      // FIXED: gemini-1.5-flash-002
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${settings.gemini_api_key}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -201,8 +201,8 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
 
         const result = await executeFunction(name, args);
 
-        // FIXED: gemini-1.5-flash-latest
-        const finalResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${settings.gemini_api_key}`, {
+        // FIXED: gemini-1.5-flash-002
+        const finalResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${settings.gemini_api_key}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -282,9 +282,9 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
                 <div className={`flex items-start gap-3 ${m.role === 'user'? 'flex-row-reverse' : ''}`}>
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                     m.role === 'user'
-         ? 'bg-gradient-to-br from-blue-600 to-cyan-600'
+        ? 'bg-gradient-to-br from-blue-600 to-cyan-600'
                       : m.role === 'function'
-         ? 'bg-gradient-to-br from-amber-600 to-orange-600'
+        ? 'bg-gradient-to-br from-amber-600 to-orange-600'
                       : 'bg-gradient-to-br from-purple-600 to-pink-600'
                   }`}>
                     {m.role === 'user'? '👤' : m.role === 'function'? <Zap className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
@@ -292,9 +292,9 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
                   <div>
                     <div className={`rounded-2xl px-5 py-3 ${
                       m.role === 'user'
-         ? 'bg-gradient-to-br from-blue-600 to-cyan-600 text-white'
+        ? 'bg-gradient-to-br from-blue-600 to-cyan-600 text-white'
                         : m.role === 'function'
-         ? 'bg-amber-900/30 border border-amber-700/50 text-amber-200'
+        ? 'bg-amber-900/30 border border-amber-700/50 text-amber-200'
                         : 'bg-slate-800/50 border border-slate-700/50 text-slate-100'
                     }`}>
                       <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.content}</p>
