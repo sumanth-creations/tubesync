@@ -756,3 +756,44 @@ export const getChannelStats = async () => {
 };
 
 // updateVideo already exists at line 97, no need to add
+// ============ AI Agent Functions ============
+
+export const getUserVideos = async (): Promise<Video[]> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not signed in');
+
+  const { data, error } = await supabase
+ .from('videos')
+ .select('*')
+ .eq('user_id', user.id)
+ .order('created_at', { ascending: false })
+ .limit(50);
+
+  if (error) throw error;
+  return data || [];
+};
+
+export const getChannelStats = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not signed in');
+
+  const { data: videos } = await supabase
+ .from('videos')
+ .select('*')
+ .eq('user_id', user.id);
+
+  const { count: channelCount } = await supabase
+ .from('youtube_channels')
+ .select('*', { count: 'exact', head: true })
+ .eq('user_id', user.id);
+
+  return {
+    totalViews: 0,
+    avgViews: 0,
+    subscribers: 0,
+    channelCount: channelCount || 0,
+    videoCount: videos?.length || 0,
+    worstVideo: null,
+    bestVideo: null
+  };
+};

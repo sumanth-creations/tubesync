@@ -33,7 +33,6 @@ export default function AIAgentPage() {
     scrollToBottom();
   }, [messages]);
 
-  // Load app context on page load
   useEffect(() => {
     async function loadAppContext() {
       try {
@@ -44,11 +43,10 @@ export default function AIAgentPage() {
 
         const context = `
 User Channel Data:
-- Total Videos: ${videos?.length || 0}
+- Total Videos: ${stats?.videoCount || 0}
 - Latest Video: "${videos?.[0]?.title || 'None'}"
 - Total Views: ${stats?.totalViews || 0}
-- Subscribers: ${stats?.subscribers || 0}
-- Avg Views: ${stats?.avgViews || 0}
+- Channels: ${stats?.channelCount || 0}
 
 Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
         `.trim();
@@ -61,12 +59,11 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
     loadAppContext();
   }, []);
 
-  // Function definitions for Gemini
   const tools = [{
     functionDeclarations: [
       {
         name: "get_video_analytics",
-        description: "Get analytics for user's YouTube videos like views, worst performing video, best video",
+        description: "Get analytics for user's YouTube videos",
         parameters: {
           type: "object",
           properties: {
@@ -80,12 +77,12 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
       },
       {
         name: "optimize_video_title",
-        description: "Generate 5 SEO optimized title suggestions for a given video topic",
+        description: "Generate 5 SEO optimized title suggestions",
         parameters: {
           type: "object",
           properties: {
-            currentTitle: { type: "string", description: "Current video title" },
-            topic: { type: "string", description: "Video topic/niche" }
+            currentTitle: { type: "string" },
+            topic: { type: "string" }
           },
           required: ["topic"]
         }
@@ -96,8 +93,8 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
         parameters: {
           type: "object",
           properties: {
-            videoId: { type: "string", description: "Video ID to update" },
-            newTitle: { type: "string", description: "New title" }
+            videoId: { type: "string" },
+            newTitle: { type: "string" }
           },
           required: ["videoId", "newTitle"]
         }
@@ -105,7 +102,6 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
     ]
   }];
 
-  // Execute function calls from Gemini
   const executeFunction = async (name: string, args: any) => {
     try {
       if (name === "get_video_analytics") {
@@ -113,26 +109,24 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
         const stats = await getChannelStats();
 
         if (args.metric === "worst_video") {
-          const worst = videos?.sort((a, b) => (a.view_count || 0) - (b.view_count || 0))[0];
-          return `Worst performing video: "${worst?.title}" with ${worst?.view_count || 0} views`;
+          return `Views tracking setup cheyali. Current ga total ${stats?.videoCount || 0} videos unnayi. Latest: "${videos?.[0]?.title || 'None'}"`;
         }
         if (args.metric === "best_video") {
-          const best = videos?.sort((a, b) => (b.view_count || 0) - (a.view_count || 0))[0];
-          return `Best performing video: "${best?.title}" with ${best?.view_count || 0} views`;
+          return `Latest video: "${videos?.[0]?.title || 'None'}". Views analytics YouTube API nunchi sync cheyyali.`;
         }
         if (args.metric === "total_views") {
-          return `Total Views: ${stats?.totalViews}`;
+          return `Total Videos: ${stats?.videoCount || 0}. Views tracking setup cheyyali.`;
         }
-        return `Videos: ${stats?.videoCount}, Avg Views: ${stats?.avgViews}, Total: ${stats?.totalViews}`;
+        return `Channel Stats:\n- Videos: ${stats?.videoCount || 0}\n- Channels: ${stats?.channelCount || 0}`;
       }
 
       if (name === "optimize_video_title") {
-        return `Here are 5 optimized titles for "${args.topic}":\n1. ${args.topic} - Complete Guide 2026\n2. How to ${args.topic} Fast [Step by Step]\n3. ${args.topic} Secrets Nobody Tells You\n4. I Tried ${args.topic} for 30 Days - Results\n5. ${args.topic} Explained in 5 Minutes`;
+        return `Here are 5 optimized titles for "${args.topic}":\n1. ${args.topic} - Complete Guide 2026\n2. How to ${args.topic} Fast [Step by Step]\n3. ${args.topic} Secrets Nobody Tells You\n4. I Tried ${args.topic} for 30 Days\n5. ${args.topic} Explained in 5 Minutes`;
       }
 
       if (name === "update_video_title") {
         await updateVideo(args.videoId, { title: args.newTitle });
-        return `✅ Title updated successfully to: "${args.newTitle}"`;
+        return `✅ Title updated to: "${args.newTitle}"`;
       }
 
       return "Function executed";
@@ -161,7 +155,6 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
         throw new Error("API Key ledhu! Settings lo add cheyyi.");
       }
 
-      // Main AI call with function calling
       const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${settings.gemini_api_key}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -194,11 +187,9 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
       const candidate = data.candidates?.[0];
       const part = candidate?.content?.parts?.[0];
 
-      // Check if AI wants to call a function
       if (part?.functionCall) {
         const { name, args } = part.functionCall;
 
-        // Show function call in UI
         setMessages(prev => [...prev, {
           id: 'func-' + Date.now(),
           role: 'function',
@@ -207,10 +198,8 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
           functionName: name
         }]);
 
-        // Execute function
         const result = await executeFunction(name, args);
 
-        // Send result back to AI for final response
         const finalResponse = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${settings.gemini_api_key}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -236,7 +225,6 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
           timestamp: new Date()
         }]);
       } else {
-        // Normal text response
         const aiText = part?.text;
         if (!aiText) throw new Error("AI nunchi response raledhu");
 
@@ -292,9 +280,9 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
                 <div className={`flex items-start gap-3 ${m.role === 'user'? 'flex-row-reverse' : ''}`}>
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                     m.role === 'user'
-                 ? 'bg-gradient-to-br from-blue-600 to-cyan-600'
+                ? 'bg-gradient-to-br from-blue-600 to-cyan-600'
                       : m.role === 'function'
-                    ? 'bg-gradient-to-br from-amber-600 to-orange-600'
+                   ? 'bg-gradient-to-br from-amber-600 to-orange-600'
                       : 'bg-gradient-to-br from-purple-600 to-pink-600'
                   }`}>
                     {m.role === 'user'? '👤' : m.role === 'function'? <Zap className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
@@ -302,9 +290,9 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
                   <div>
                     <div className={`rounded-2xl px-5 py-3 ${
                       m.role === 'user'
-                   ? 'bg-gradient-to-br from-blue-600 to-cyan-600 text-white'
+                  ? 'bg-gradient-to-br from-blue-600 to-cyan-600 text-white'
                         : m.role === 'function'
-                      ? 'bg-amber-900/30 border border-amber-700/50 text-amber-200'
+                     ? 'bg-amber-900/30 border border-amber-700/50 text-amber-200'
                         : 'bg-slate-800/50 border border-slate-700/50 text-slate-100'
                     }`}>
                       <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.content}</p>
