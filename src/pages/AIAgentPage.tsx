@@ -1,8 +1,9 @@
 // TEST: v1beta API 2026
 import { useState, useRef, useEffect } from 'react';
-import { Bot, Send, Loader2, Sparkles, Zap } from 'lucide-react';
+import { Bot, Send, Loader2, Sparkles, Zap, Upload, Folder, ListVideo } from 'lucide-react';
 import { getUserSettings, getUserVideos, getChannelStats, updateVideo } from '../lib/api';
 import { toast } from 'react-hot-toast';
+import { supabase } from '../lib/supabase';
 
 interface Message {
   id: string;
@@ -23,8 +24,63 @@ export default function AIAgentPage() {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [queueCount, setQueueCount] = useState(0);
   const [userContext, setUserContext] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const getVideoDuration = (file: File): Promise<number> => {
+    return new Promise((resolve) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => resolve(Math.floor(video.duration));
+      video.src = URL.createObjectURL(file);
+    });
+  };
+
+  const handleFolderUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    
+    setUploading(true);
+    let count = 0;
+    
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('video/')) continue;
+      
+      const duration = await getVideoDuration(file);
+      const filePath = `pending/${Date.now()}_${file.name}`;
+      
+      const { error: uploadError } = await supabase.storage
+       .from('videos')
+       .upload(filePath, file);
+      
+      if (uploadError) {
+        toast.error(`${file.name} upload failed`);
+        continue;
+      }
+      
+      await supabase.from('upload_queue').insert({
+        filename: file.name,
+        file_path: filePath,
+        duration: duration,
+        is_long_video: duration > 60
+      });
+      count++;
+    }
+    
+    toast.success(`${count} videos queue lo add ayyayi`);
+    setUploading(false);
+    loadQueueCount();
+  };
+
+  const loadQueueCount = async () => {
+    const { count } = await supabase
+     .from('upload_queue')
+     .select('*', { count: 'exact', head: true })
+     .eq('status', 'pending');
+    setQueueCount(count || 0);
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -48,6 +104,7 @@ User Channel Data:
 - Latest Video: "${videos?.[0]?.title || 'None'}"
 - Total Views: ${stats?.totalViews || 0}
 - Channels: ${stats?.channelCount || 0}
+- Upload Queue: ${queueCount} videos pending
 
 Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
         `.trim();
@@ -58,7 +115,8 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
       }
     }
     loadAppContext();
-  }, []);
+    loadQueueCount();
+  }, [queueCount]);
 
   const tools = [{
     function_declarations: [
@@ -118,7 +176,7 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
         if (args.metric === "total_views") {
           return `Total Videos: ${stats?.videoCount || 0}. Views tracking setup cheyyali.`;
         }
-        return `Channel Stats:\n- Videos: ${stats?.videoCount || 0}\n- Channels: ${stats?.channelCount || 0}`;
+        return `Channel Stats:\n- Videos: ${stats?.videoCount || 0}\n- Channels: ${stats?.channelCount || 0}\n- Queue: ${queueCount} pending uploads`;
       }
 
       if (name === "optimize_video_title") {
@@ -156,7 +214,6 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
         throw new Error("API Key ledhu! Settings lo add cheyyi.");
       }
 
-      // FIXED: v1beta + snake_case
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${settings.gemini_api_key}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -202,7 +259,6 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
 
         const result = await executeFunction(name, args);
 
-        // FIXED: v1beta + snake_case
         const finalResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${settings.gemini_api_key}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -260,11 +316,33 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
               <Bot className="w-6 h-6" />
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
                 TubeSync Command Center
               </h1>
               <p className="text-slate-500 text-sm">Powered by Gemini 2.5 Flash + Functions</p>
+              
+              <div className="flex items-center gap-3 mt-3">
+                <label className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 cursor-pointer flex items-center gap-2 text-sm font-medium transition-colors">
+                  <Folder className="w-4 h-4" />
+                  {uploading? 'Uploading...' : 'Upload Folder'}
+                  <input 
+                    type="file" 
+                    multiple 
+                    accept="video/*"
+                    onChange={handleFolderUpload}
+                    className="hidden"
+                    disabled={uploading}
+                    webkitdirectory=""
+                    directory=""
+                  />
+                </label>
+                
+                <div className="px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700/50 text-sm flex items-center gap-2">
+                  <ListVideo className="w-4 h-4 text-purple-400" />
+                  Queue: <span className="text-purple-400 font-bold">{queueCount}</span>
+                </div>
+              </div>
             </div>
             <div className="ml-auto">
               <div className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium">
@@ -283,9 +361,9 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
                 <div className={`flex items-start gap-3 ${m.role === 'user'? 'flex-row-reverse' : ''}`}>
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                     m.role === 'user'
-  ? 'bg-gradient-to-br from-blue-600 to-cyan-600'
+ ? 'bg-gradient-to-br from-blue-600 to-cyan-600'
                       : m.role === 'function'
-  ? 'bg-gradient-to-br from-amber-600 to-orange-600'
+ ? 'bg-gradient-to-br from-amber-600 to-orange-600'
                       : 'bg-gradient-to-br from-purple-600 to-pink-600'
                   }`}>
                     {m.role === 'user'? '👤' : m.role === 'function'? <Zap className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
@@ -293,9 +371,9 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
                   <div>
                     <div className={`rounded-2xl px-5 py-3 ${
                       m.role === 'user'
-  ? 'bg-gradient-to-br from-blue-600 to-cyan-600 text-white'
+ ? 'bg-gradient-to-br from-blue-600 to-cyan-600 text-white'
                         : m.role === 'function'
-  ? 'bg-amber-900/30 border border-amber-700/50 text-amber-200'
+ ? 'bg-amber-900/30 border border-amber-700/50 text-amber-200'
                         : 'bg-slate-800/50 border border-slate-700/50 text-slate-100'
                     }`}>
                       <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.content}</p>
