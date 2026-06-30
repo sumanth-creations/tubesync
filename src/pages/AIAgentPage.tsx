@@ -1,6 +1,6 @@
 // TEST: v1beta API 2026
 import { useState, useRef, useEffect } from 'react';
-import { Bot, Send, Loader2, Sparkles, Zap, Upload, Folder, ListVideo } from 'lucide-react';
+import { Bot, Send, Loader2, Sparkles, Zap, Upload, Folder, ListVideo, Clock } from 'lucide-react';
 import { getUserSettings, getUserVideos, getChannelStats, updateVideo } from '../lib/api';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
@@ -18,7 +18,7 @@ export default function AIAgentPage() {
     {
       id: '1',
       role: 'assistant',
-      content: 'TubeSync Command Center ready 🚀 Naa tho channel manage cheyyochu. "Worst video edi?" "Title optimize chey" "Analytics chupinchu" lanti commands try chey.',
+      content: 'TubeSync Command Center ready 🚀 Folder upload chey, nenu roju 1 viral video push chestha. Best time, title, desc, tags anni nene chuskunta.',
       timestamp: new Date()
     }
   ]);
@@ -38,47 +38,65 @@ export default function AIAgentPage() {
     });
   };
 
+  const getBestUploadTime = () => {
+    // YouTube best times IST: 9 AM, 12 PM, 3 PM, 6 PM, 9 PM
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const ist = new Date(now.getTime() + istOffset);
+    const hour = ist.getUTCHours();
+
+    const bestHours = [9, 12, 15, 18, 21];
+    let nextHour = bestHours.find(h => h > hour) || bestHours[0];
+
+    const nextTime = new Date(ist);
+    nextTime.setUTCHours(nextHour, 0, 0, 0);
+    if (nextHour <= hour) nextTime.setUTCDate(nextTime.getUTCDate() + 1);
+
+    return nextTime.toISOString();
+  };
+
   const handleFolderUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-    
+
     setUploading(true);
     let count = 0;
-    
+
     for (const file of Array.from(files)) {
       if (!file.type.startsWith('video/')) continue;
-      
+
       const duration = await getVideoDuration(file);
       const filePath = `pending/${Date.now()}_${file.name}`;
-      
+
       const { error: uploadError } = await supabase.storage
-       .from('videos')
-       .upload(filePath, file);
-      
+      .from('videos')
+      .upload(filePath, file);
+
       if (uploadError) {
         toast.error(`${file.name} upload failed`);
         continue;
       }
-      
+
       await supabase.from('upload_queue').insert({
         filename: file.name,
         file_path: filePath,
         duration: duration,
-        is_long_video: duration > 60
+        is_long_video: duration > 60,
+        scheduled_for: getBestUploadTime()
       });
       count++;
     }
-    
-    toast.success(`${count} videos queue lo add ayyayi`);
+
+    toast.success(`${count} videos queue lo add ayyayi. Roju 1 video best time lo upload avtadi`);
     setUploading(false);
     loadQueueCount();
   };
 
   const loadQueueCount = async () => {
     const { count } = await supabase
-     .from('upload_queue')
-     .select('*', { count: 'exact', head: true })
-     .eq('status', 'pending');
+    .from('upload_queue')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'pending');
     setQueueCount(count || 0);
   };
 
@@ -105,6 +123,7 @@ User Channel Data:
 - Total Views: ${stats?.totalViews || 0}
 - Channels: ${stats?.channelCount || 0}
 - Upload Queue: ${queueCount} videos pending
+- Next Upload: ${queueCount > 0? 'Best time today' : 'Queue empty'}
 
 Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
         `.trim();
@@ -128,7 +147,7 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
           properties: {
             metric: {
               type: "string",
-              enum: ["worst_video", "best_video", "total_views", "recent_performance"],
+              enum: ["worst_video", "best_video", "total_views", "recent_performance", "queue_status"],
               description: "What metric to fetch"
             }
           }
@@ -167,6 +186,9 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
         const videos = await getUserVideos();
         const stats = await getChannelStats();
 
+        if (args.metric === "queue_status") {
+          return `Upload Queue: ${queueCount} videos pending. Next upload: Best time today. Roju 1 video automatic ga viral title+desc tho upload avtadi.`;
+        }
         if (args.metric === "worst_video") {
           return `Views tracking setup cheyali. Current ga total ${stats?.videoCount || 0} videos unnayi. Latest: "${videos?.[0]?.title || 'None'}"`;
         }
@@ -176,7 +198,7 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
         if (args.metric === "total_views") {
           return `Total Videos: ${stats?.videoCount || 0}. Views tracking setup cheyyali.`;
         }
-        return `Channel Stats:\n- Videos: ${stats?.videoCount || 0}\n- Channels: ${stats?.channelCount || 0}\n- Queue: ${queueCount} pending uploads`;
+        return `Channel Stats:\n- Videos: ${stats?.videoCount || 0}\n- Channels: ${stats?.channelCount || 0}\n- Queue: ${queueCount} pending`;
       }
 
       if (name === "optimize_video_title") {
@@ -320,30 +342,33 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
               <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
                 TubeSync Command Center
               </h1>
-              <p className="text-slate-500 text-sm">Powered by Gemini 2.5 Flash + Functions</p>
-              
+              <p className="text-slate-500 text-sm">Auto Upload + Viral AI + Best Time Scheduling</p>
+
               <div className="flex items-center gap-3 mt-3">
                 <label className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 cursor-pointer flex items-center gap-2 text-sm font-medium transition-colors">
                   <Folder className="w-4 h-4" />
                   {uploading? 'Uploading...' : 'Upload Folder'}
-                  <input 
-                    type="file" 
-                    multiple 
+                  <input
+                    type="file"
+                    multiple
                     accept="video/*"
                     onChange={handleFolderUpload}
                     className="hidden"
                     disabled={uploading}
-                    webkitdirectory=""
-                    directory=""
+                    {...{ webkitdirectory: "", directory: "" } as any}
                   />
                 </label>
-                
+
                 <div className="px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700/50 text-sm flex items-center gap-2">
                   <ListVideo className="w-4 h-4 text-purple-400" />
                   Queue: <span className="text-purple-400 font-bold">{queueCount}</span>
                 </div>
+
+                <div className="px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700/50 text-sm flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-emerald-400" />
+                  Auto: <span className="text-emerald-400 font-bold">Daily 1</span>
+                </div>
               </div>
-            </div>
             <div className="ml-auto">
               <div className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium">
                 ● Online
@@ -361,9 +386,9 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
                 <div className={`flex items-start gap-3 ${m.role === 'user'? 'flex-row-reverse' : ''}`}>
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                     m.role === 'user'
- ? 'bg-gradient-to-br from-blue-600 to-cyan-600'
+? 'bg-gradient-to-br from-blue-600 to-cyan-600'
                       : m.role === 'function'
- ? 'bg-gradient-to-br from-amber-600 to-orange-600'
+? 'bg-gradient-to-br from-amber-600 to-orange-600'
                       : 'bg-gradient-to-br from-purple-600 to-pink-600'
                   }`}>
                     {m.role === 'user'? '👤' : m.role === 'function'? <Zap className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
@@ -371,9 +396,9 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
                   <div>
                     <div className={`rounded-2xl px-5 py-3 ${
                       m.role === 'user'
- ? 'bg-gradient-to-br from-blue-600 to-cyan-600 text-white'
+? 'bg-gradient-to-br from-blue-600 to-cyan-600 text-white'
                         : m.role === 'function'
- ? 'bg-amber-900/30 border border-amber-700/50 text-amber-200'
+? 'bg-amber-900/30 border border-amber-700/50 text-amber-200'
                         : 'bg-slate-800/50 border border-slate-700/50 text-slate-100'
                     }`}>
                       <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.content}</p>
@@ -404,7 +429,7 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' &&!e.shiftKey && handleSend()}
-              placeholder="Command ivvu: 'worst video edi?' 'title optimize chey' 'views chupinchu'..."
+              placeholder="Command ivvu: 'queue status' 'worst video edi?' 'title optimize chey'..."
               className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-xl px-5 py-3.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 transition-all"
               disabled={loading}
             />
