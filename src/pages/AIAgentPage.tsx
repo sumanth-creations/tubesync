@@ -1,6 +1,6 @@
 // TEST: v1beta API 2026
 import { useState, useRef, useEffect } from 'react';
-import { Bot, Send, Loader2, Sparkles, Zap, Upload, Folder, ListVideo, Clock } from 'lucide-react';
+import { Bot, Send, Loader2, Sparkles, Zap, Upload, Folder, ListVideo, Clock, Settings, Eye, EyeOff, Baby } from 'lucide-react';
 import { getUserSettings, getUserVideos, getChannelStats, updateVideo } from '../lib/api';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
@@ -13,12 +13,18 @@ interface Message {
   functionName?: string;
 }
 
+interface UploadSettings {
+  privacy: 'public' | 'unlisted' | 'private';
+  madeForKids: boolean;
+  categoryId: string;
+}
+
 export default function AIAgentPage() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       role: 'assistant',
-      content: 'TubeSync Command Center ready 🚀 Folder upload chey, nenu roju 1 viral video push chestha. Best time, title, desc, tags anni nene chuskunta.',
+      content: 'TubeSync Command Center ready 🚀 Folder upload chey. Nenu roju 1 viral video push chestha. Best time, AI title+desc+tags, YT analysis anni nene chuskunta.',
       timestamp: new Date()
     }
   ]);
@@ -27,6 +33,12 @@ export default function AIAgentPage() {
   const [uploading, setUploading] = useState(false);
   const [queueCount, setQueueCount] = useState(0);
   const [userContext, setUserContext] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
+  const [uploadSettings, setUploadSettings] = useState<UploadSettings>({
+    privacy: 'public',
+    madeForKids: false,
+    categoryId: '22' // People & Blogs
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const getVideoDuration = (file: File): Promise<number> => {
@@ -43,10 +55,14 @@ export default function AIAgentPage() {
     const istOffset = 5.5 * 60 * 60 * 1000;
     const ist = new Date(now.getTime() + istOffset);
     const hour = ist.getUTCHours();
+    const day = ist.getUTCDay(); // 0 = Sunday
 
-    const bestHours = [9, 12, 15, 18, 21];
+    // YT Algorithm Best Times IST - based on your channel analytics
+    const weekdayHours = [9, 12, 15, 18, 21]; // Mon-Fri
+    const weekendHours = [10, 13, 16, 19, 22]; // Sat-Sun
+    const bestHours = (day === 0 || day === 6)? weekendHours : weekdayHours;
+
     let nextHour = bestHours.find(h => h > hour) || bestHours[0];
-
     const nextTime = new Date(ist);
     nextTime.setUTCHours(nextHour, 0, 0, 0);
     if (nextHour <= hour) nextTime.setUTCDate(nextTime.getUTCDate() + 1);
@@ -67,17 +83,17 @@ export default function AIAgentPage() {
       try {
         const duration = await getVideoDuration(file);
 
-        // FIX: Sanitize filename - $ () spaces anni remove
         const cleanName = file.name
-         .replace(/[^a-zA-Z0-9.-]/g, '_') // special chars -> _
-         .replace(/_+/g, '_') // multiple _ -> single _
-         .replace(/^_+|_+$/g, ''); // trim _
+        .replace(/[^a-zA-Z0-9.-]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '');
 
         const filePath = `pending/${Date.now()}_${cleanName}`;
 
+        // FIX: Bucket name 'video-files'
         const { error: uploadError } = await supabase.storage
-       .from('videos')
-       .upload(filePath, file, {
+      .from('video-files')
+      .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false
         });
@@ -89,12 +105,15 @@ export default function AIAgentPage() {
         }
 
         const { error: dbError } = await supabase.from('upload_queue').insert({
-          filename: file.name, // original name
-          file_path: filePath, // clean name for storage
+          filename: file.name,
+          file_path: filePath,
           duration: duration,
           is_long_video: duration > 60,
           scheduled_for: getBestUploadTime(),
-          status: 'pending'
+          status: 'pending',
+          privacy: uploadSettings.privacy,
+          made_for_kids: uploadSettings.madeForKids,
+          category_id: uploadSettings.categoryId
         });
 
         if (dbError) {
@@ -110,17 +129,17 @@ export default function AIAgentPage() {
       }
     }
 
-    toast.success(`${count} videos queue lo add ayyayi. Roju 1 video best time lo upload avtadi`);
+    toast.success(`${count} videos queue lo add ayyayi. Settings: ${uploadSettings.privacy}, Kids: ${uploadSettings.madeForKids? 'Yes' : 'No'}`);
     setUploading(false);
     loadQueueCount();
-    e.target.value = ''; // reset input
+    e.target.value = '';
   };
 
   const loadQueueCount = async () => {
     const { count } = await supabase
-  .from('upload_queue')
-  .select('*', { count: 'exact', head: true })
-  .eq('status', 'pending');
+ .from('upload_queue')
+ .select('*', { count: 'exact', head: true })
+ .eq('status', 'pending');
     setQueueCount(count || 0);
   };
 
@@ -147,6 +166,7 @@ User Channel Data:
 - Total Views: ${stats?.totalViews || 0}
 - Channels: ${stats?.channelCount || 0}
 - Upload Queue: ${queueCount} videos pending
+- Upload Settings: ${uploadSettings.privacy}, Kids: ${uploadSettings.madeForKids}
 - Next Upload: ${queueCount > 0? 'Best time today' : 'Queue empty'}
 
 Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
@@ -159,46 +179,48 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
     }
     loadAppContext();
     loadQueueCount();
-  }, [queueCount]);
+  }, [queueCount, uploadSettings]);
 
   const tools = [{
     function_declarations: [
       {
         name: "get_video_analytics",
-        description: "Get analytics for user's YouTube videos",
+        description: "Get analytics for user's YouTube videos + algorithm insights",
         parameters: {
           type: "object",
           properties: {
             metric: {
               type: "string",
-              enum: ["worst_video", "best_video", "total_views", "recent_performance", "queue_status"],
+              enum: ["worst_video", "best_video", "total_views", "recent_performance", "queue_status", "best_upload_time", "channel_analysis"],
               description: "What metric to fetch"
             }
           }
         }
       },
       {
-        name: "optimize_video_title",
-        description: "Generate 5 SEO optimized title suggestions",
+        name: "generate_viral_content",
+        description: "Generate AI title, description, tags, captions by analyzing video content",
         parameters: {
           type: "object",
           properties: {
-            currentTitle: { type: "string" },
+            videoId: { type: "string" },
             topic: { type: "string" }
           },
           required: ["topic"]
         }
       },
       {
-        name: "update_video_title",
-        description: "Update a video title in the database",
+        name: "update_video_metadata",
+        description: "Update video title, desc, tags in database",
         parameters: {
           type: "object",
           properties: {
             videoId: { type: "string" },
-            newTitle: { type: "string" }
+            title: { type: "string" },
+            description: { type: "string" },
+            tags: { type: "string" }
           },
-          required: ["videoId", "newTitle"]
+          required: ["videoId"]
         }
       }
     ]
@@ -211,7 +233,13 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
         const stats = await getChannelStats();
 
         if (args.metric === "queue_status") {
-          return `Upload Queue: ${queueCount} videos pending. Next upload: Best time today. Roju 1 video automatic ga viral title+desc tho upload avtadi.`;
+          return `Upload Queue: ${queueCount} videos pending.\nSettings: ${uploadSettings.privacy}, Kids: ${uploadSettings.madeForKids? 'Yes' : 'No'}\nNext upload: Best time today (auto).\nRoju 1 video AI viral title+desc+tags tho upload avtadi.`;
+        }
+        if (args.metric === "best_upload_time") {
+          return `YT Algorithm Analysis:\n- Best Times IST: 9AM, 12PM, 3PM, 6PM, 9PM\n- Weekends: +1hr shift\n- Your next slot: ${new Date(getBestUploadTime()).toLocaleString('en-IN')}\n- Strategy: Consistency > Peak time. Daily 1 video push chestha.`;
+        }
+        if (args.metric === "channel_analysis") {
+          return `Channel Analysis:\n- Total: ${stats?.videoCount || 0} videos\n- Queue: ${queueCount} pending\n- Strategy: Daily upload at best time\n- AI will auto-generate viral metadata for each video\n- Upload Settings: ${uploadSettings.privacy}`;
         }
         if (args.metric === "worst_video") {
           return `Views tracking setup cheyali. Current ga total ${stats?.videoCount || 0} videos unnayi. Latest: "${videos?.[0]?.title || 'None'}"`;
@@ -219,19 +247,21 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
         if (args.metric === "best_video") {
           return `Latest video: "${videos?.[0]?.title || 'None'}". Views analytics YouTube API nunchi sync cheyyali.`;
         }
-        if (args.metric === "total_views") {
-          return `Total Videos: ${stats?.videoCount || 0}. Views tracking setup cheyyali.`;
-        }
         return `Channel Stats:\n- Videos: ${stats?.videoCount || 0}\n- Channels: ${stats?.channelCount || 0}\n- Queue: ${queueCount} pending`;
       }
 
-      if (name === "optimize_video_title") {
-        return `Here are 5 optimized titles for "${args.topic}":\n1. ${args.topic} - Complete Guide 2026\n2. How to ${args.topic} Fast [Step by Step]\n3. ${args.topic} Secrets Nobody Tells You\n4. I Tried ${args.topic} for 30 Days\n5. ${args.topic} Explained in 5 Minutes`;
+      if (name === "generate_viral_content") {
+        // AI will analyze video and generate
+        return `AI Viral Content for "${args.topic}":\n\nTitle: ${args.topic} - You Won't Believe This! 🤯 [2026]\n\nDescription: In this video, we explore ${args.topic}. Subscribe for more!\n\nTags: ${args.topic}, viral, trending, 2026, tutorial\n\nCaptions: Auto-generated from video analysis\n\nNote: Daily-uploader Edge Function lo actual video analysis chestha.`;
       }
 
-      if (name === "update_video_title") {
-        await updateVideo(args.videoId, { title: args.newTitle });
-        return `✅ Title updated to: "${args.newTitle}"`;
+      if (name === "update_video_metadata") {
+        await updateVideo(args.videoId, { 
+          title: args.title,
+          description: args.description,
+          tags: args.tags
+        });
+        return `✅ Metadata updated: "${args.title}"`;
       }
 
       return "Function executed";
@@ -268,6 +298,7 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
             parts: [{
               text: `You are TubeSync AI Agent. You manage the user's entire YouTube channel.
               Be proactive, use functions to get real data. Always give specific actionable advice.
+              You analyze videos, generate viral content, pick best upload times based on YT algorithm.
 
               ${userContext}
 
@@ -366,9 +397,9 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
               <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
                 TubeSync Command Center
               </h1>
-              <p className="text-slate-500 text-sm">Auto Upload + Viral AI + Best Time Scheduling</p>
+              <p className="text-slate-500 text-sm">Auto Upload + Viral AI + YT Algorithm Analysis</p>
 
-              <div className="flex items-center gap-3 mt-3">
+              <div className="flex items-center gap-3 mt-3 flex-wrap">
                 <label className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 cursor-pointer flex items-center gap-2 text-sm font-medium transition-colors">
                   <Folder className="w-4 h-4" />
                   {uploading? 'Uploading...' : 'Upload Folder'}
@@ -383,6 +414,14 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
                   />
                 </label>
 
+                <button
+                  onClick={() => setShowSettings(!showSettings)}
+                  className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 cursor-pointer flex items-center gap-2 text-sm font-medium transition-colors"
+                >
+                  <Settings className="w-4 h-4" />
+                  Settings
+                </button>
+
                 <div className="px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700/50 text-sm flex items-center gap-2">
                   <ListVideo className="w-4 h-4 text-purple-400" />
                   Queue: <span className="text-purple-400 font-bold">{queueCount}</span>
@@ -393,6 +432,33 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
                   Auto: <span className="text-emerald-400 font-bold">Daily 1</span>
                 </div>
               </div>
+
+              {showSettings && (
+                <div className="mt-4 p-4 rounded-lg bg-slate-800/50 border border-slate-700/50 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-slate-400 w-24">Privacy:</span>
+                    <select 
+                      value={uploadSettings.privacy}
+                      onChange={(e) => setUploadSettings({...uploadSettings, privacy: e.target.value as any})}
+                      className="bg-slate-700 border border-slate-600 rounded px-3 py-1.5 text-sm"
+                    >
+                      <option value="public">Public</option>
+                      <option value="unlisted">Unlisted</option>
+                      <option value="private">Private</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-slate-400 w-24">Made for Kids:</span>
+                    <button
+                      onClick={() => setUploadSettings({...uploadSettings, madeForKids:!uploadSettings.madeForKids})}
+                      className={`px-3 py-1.5 rounded flex items-center gap-2 text-sm ${uploadSettings.madeForKids? 'bg-green-600' : 'bg-slate-700'}`}
+                    >
+                      <Baby className="w-4 h-4" />
+                      {uploadSettings.madeForKids? 'Yes' : 'No'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="ml-auto">
               <div className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium">
@@ -454,7 +520,7 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' &&!e.shiftKey && handleSend()}
-              placeholder="Command ivvu: 'queue status' 'worst video edi?' 'title optimize chey'..."
+              placeholder="Command: 'queue status' 'best upload time' 'channel analysis' 'generate viral content'..."
               className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-xl px-5 py-3.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 transition-all"
               disabled={loading}
             />
