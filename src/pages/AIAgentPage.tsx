@@ -39,7 +39,6 @@ export default function AIAgentPage() {
   };
 
   const getBestUploadTime = () => {
-    // YouTube best times IST: 9 AM, 12 PM, 3 PM, 6 PM, 9 PM
     const now = new Date();
     const istOffset = 5.5 * 60 * 60 * 1000;
     const ist = new Date(now.getTime() + istOffset);
@@ -69,8 +68,8 @@ export default function AIAgentPage() {
       const filePath = `pending/${Date.now()}_${file.name}`;
 
       const { error: uploadError } = await supabase.storage
-      .from('videos')
-      .upload(filePath, file);
+     .from('videos')
+     .upload(filePath, file);
 
       if (uploadError) {
         toast.error(`${file.name} upload failed`);
@@ -94,9 +93,9 @@ export default function AIAgentPage() {
 
   const loadQueueCount = async () => {
     const { count } = await supabase
-    .from('upload_queue')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'pending');
+   .from('upload_queue')
+   .select('*', { count: 'exact', head: true })
+   .eq('status', 'pending');
     setQueueCount(count || 0);
   };
 
@@ -369,6 +368,7 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
                   Auto: <span className="text-emerald-400 font-bold">Daily 1</span>
                 </div>
               </div>
+            </div>
             <div className="ml-auto">
               <div className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium">
                 ● Online
