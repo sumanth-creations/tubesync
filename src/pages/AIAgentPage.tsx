@@ -155,11 +155,11 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
         throw new Error("API Key ledhu! Settings lo add cheyyi.");
       }
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${settings.gemini_api_key}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${settings.gemini_api_key}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          systemInstruction: {
+          system_instruction: {
             parts: [{
               text: `You are TubeSync AI Agent. You manage the user's entire YouTube channel.
               Be proactive, use functions to get real data. Always give specific actionable advice.
@@ -200,18 +200,18 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
 
         const result = await executeFunction(name, args);
 
-        const finalResponse = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${settings.gemini_api_key}`, {
+        const finalResponse = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${settings.gemini_api_key}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            system_instruction: {
+              parts: [{ text: `You are TubeSync AI Agent. User context: ${userContext}` }]
+            },
             contents: [
               { role: "user", parts: [{ text: currentInput }] },
               { role: "model", parts: [{ functionCall: { name, args } }] },
               { role: "function", parts: [{ functionResponse: { name, response: { result } } }] }
-            ],
-            systemInstruction: {
-              parts: [{ text: `You are TubeSync AI Agent. User context: ${userContext}` }]
-            }
+            ]
           })
         });
 
@@ -261,7 +261,7 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
               <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
                 TubeSync Command Center
               </h1>
-              <p className="text-slate-500 text-sm">Powered by Gemini 2.5 Flash + Functions</p>
+              <p className="text-slate-500 text-sm">Powered by Gemini 2.0 Flash + Functions</p>
             </div>
             <div className="ml-auto">
               <div className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium">
@@ -280,9 +280,9 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
                 <div className={`flex items-start gap-3 ${m.role === 'user'? 'flex-row-reverse' : ''}`}>
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                     m.role === 'user'
-                ? 'bg-gradient-to-br from-blue-600 to-cyan-600'
+               ? 'bg-gradient-to-br from-blue-600 to-cyan-600'
                       : m.role === 'function'
-                   ? 'bg-gradient-to-br from-amber-600 to-orange-600'
+                 ? 'bg-gradient-to-br from-amber-600 to-orange-600'
                       : 'bg-gradient-to-br from-purple-600 to-pink-600'
                   }`}>
                     {m.role === 'user'? '👤' : m.role === 'function'? <Zap className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
@@ -290,9 +290,9 @@ Video List: ${videos?.slice(0, 5).map(v => v.title).join(', ')}
                   <div>
                     <div className={`rounded-2xl px-5 py-3 ${
                       m.role === 'user'
-                  ? 'bg-gradient-to-br from-blue-600 to-cyan-600 text-white'
+                 ? 'bg-gradient-to-br from-blue-600 to-cyan-600 text-white'
                         : m.role === 'function'
-                     ? 'bg-amber-900/30 border border-amber-700/50 text-amber-200'
+                   ? 'bg-amber-900/30 border border-amber-700/50 text-amber-200'
                         : 'bg-slate-800/50 border border-slate-700/50 text-slate-100'
                     }`}>
                       <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.content}</p>
