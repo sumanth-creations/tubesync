@@ -712,3 +712,53 @@ export const getChannelStats = async () => {
     bestVideo: null
   };
 };
+
+// ============ WAR MODE: LINK → 5 SHORTS ============
+export async function createShortsFromLink(videoURL: string): Promise<Video[]> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not signed in')
+
+  const { data: { session } } = await supabase.auth.getSession()
+  
+  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/youtube-upload-worker`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session?.access_token}`,
+    },
+    body: JSON.stringify({ 
+      action: 'create-shorts-from-link',
+      videoURL,
+      user_id: user.id 
+    }),
+  })
+  
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error || 'Failed to create shorts from link')
+  }
+  
+  const data = await res.json()
+  return data.shorts || []
+}
+
+// ============ RENDER QUEUE ============
+export async function getRenderQueue(): Promise<Video[]> {
+  const { data, error } = await supabase
+    .from('videos')
+    .select('*')
+    .eq('status', 'pending_render')
+    .order('created_at', { ascending: true })
+  
+  if (error) throw error
+  return data || []
+}
+
+export async function triggerVideoRender(videoId: string): Promise<void> {
+  const { error } = await supabase
+    .from('videos')
+    .update({ status: 'rendering' })
+    .eq('id', videoId)
+  
+  if (error) throw error
+}
