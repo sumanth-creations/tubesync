@@ -9,7 +9,7 @@ import {
   getUserSettings, saveGeminiApiKey, saveChannelNiche,
 } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
-import type { YouTubeChannel, UploadSchedule } from '../types';
+import type { YouTubeChannel, UploadSchedule } from '../lib/database';
 
 export default function SettingsPage() {
   const { user, signOut } = useAuth();

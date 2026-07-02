@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { Activity, Video as VideoIcon, CircleCheck as CheckCircle, Clock, CircleAlert as AlertCircle, Sparkles, Scissors, Youtube, Loader as Loader2 } from 'lucide-react';
 import { getActivities } from '../lib/api';
-import type { Activity as ActivityType } from '../types';
+import type { Activity as ActivityType } from '../lib/database';
 
 export default function ActivityPage() {
   const [activities, setActivities] = useState<ActivityType[]>([]);

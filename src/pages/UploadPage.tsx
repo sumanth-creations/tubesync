@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { Upload, Clock, CircleAlert as AlertCircle, Loader as Loader2, Play, RefreshCw, Trash2, Calendar, CircleCheck as CheckCircle } from 'lucide-react';
 import { getUploadQueue, getVideos, retryUpload, deleteVideo } from '../lib/api';
-import type { UploadQueue, Video } from '../types';
+import type { UploadQueue, Video } from '../lib/database';
 
 interface QueueItem extends UploadQueue {
   video?: Video;

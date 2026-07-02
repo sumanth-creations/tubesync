@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { Search, Filter, Trash2, RefreshCw, ExternalLink, Play, Clock, CircleCheck as CheckCircle, CircleAlert as AlertCircle, Loader as Loader2, Video as VideoIcon, Calendar } from 'lucide-react';
 import { getVideos, deleteVideo, retryUpload } from '../lib/api';
-import type { Video } from '../types';
+import type { Video } from '../lib/database';
 
 type StatusFilter = 'all' | 'draft' | 'ready' | 'queued' | 'uploading' | 'uploaded' | 'failed' | 'scheduled';
 

@@ -139,7 +139,7 @@ export async function renderShortFromSource(
   onProgress?.({ stage: 'done', slideIndex: 1, totalSlides: 1, percent: 100 });
 
   const data = await ffmpeg.readFile('output.webm');
-  const uint8Array = typeof data === 'string'? new TextEncoder().encode(data) : data;
+  const uint8Array = typeof data === 'string'? new TextEncoder().encode(data) : new Uint8Array(data.buffer as ArrayBuffer);
   return { blob: new Blob([uint8Array], { type: 'video/webm' }), hasAudio: true };
 }
 

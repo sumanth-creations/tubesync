@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getVideos } from '../lib/api';
-import type { Video } from '../types';
+import type { Video } from '../lib/database';
 
 export function useVideos(limit = 100, status?: string) {
   const [videos, setVideos] = useState<Video[]>([]);
