@@ -1,7 +1,7 @@
 // src/pages/GeneratePage.tsx
 import { useState, useEffect } from 'react'
 import { createShortsFromLink, getRenderQueue } from '../lib/api'
-import { Video } from '../lib/database'
+import { Video } from '../types'
 import toast from 'react-hot-toast'
 import { Loader2, Sparkles, Youtube, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
 

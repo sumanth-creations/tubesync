@@ -18,7 +18,7 @@ import {
   removeCompetitor,
   updateAgentState,
 } from './extended-api';
-import type { CompetitorIntelligence } from '../../lib/database';
+import type { CompetitorIntelligence } from '../../types';
 
 interface CompetitorProfile {
   channelId: string;

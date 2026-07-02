@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import type {
   YouTubeChannel, Video, UploadQueue, AIGeneration, VideoJob,
   UploadSchedule, Short, Analytics, Activity, AIContent, AppUser
-} from '../lib/database';
+} from '../types';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;

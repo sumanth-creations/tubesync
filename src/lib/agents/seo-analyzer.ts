@@ -12,7 +12,7 @@
 import {
   getSEOHistory, recordSEOMetrics,
 } from './api';
-import type { SEOHistory, Video } from '../../lib/database';
+import type { SEOHistory, Video } from '../../types';
 import { IntelligenceCore, getAIClient } from './intelligence-core';
 
 interface SEOMetricSnapshot {

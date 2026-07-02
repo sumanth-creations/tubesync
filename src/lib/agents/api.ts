@@ -10,7 +10,7 @@ import type {
   AgentMemory, AgentSession, AgentMessage, AgentKnowledge,
   AgentToolLog, SEOHistory, ChannelHistory, GrowthIntelligence,
   CopyrightReport, ScheduledPublish, UserSettings,
-} from '../../lib/database';
+} from '../../types';
 
 // Helper for error logging
 function logError(operation: string, error: { message?: string; code?: string } | null): void {

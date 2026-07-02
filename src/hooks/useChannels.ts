@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getYouTubeChannels } from '../lib/api';
-import type { YouTubeChannel } from '../lib/database';
+import type { YouTubeChannel } from '../types';
 
 export function useChannels() {
   const [channels, setChannels] = useState<YouTubeChannel[]>([]);

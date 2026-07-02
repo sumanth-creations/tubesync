@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { Scissors, Sparkles, Play, TrendingUp, Upload, Loader as Loader2, Check, Video as VideoIcon } from 'lucide-react';
 import { getVideos, generateShorts, getShorts } from '../lib/api';
-import type { Video, Short } from '../lib/database';
+import type { Video, Short } from '../types';
 
 export default function ShortsPage() {
   const [videos, setVideos] = useState<Video[]>([]);

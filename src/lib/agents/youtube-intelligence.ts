@@ -35,7 +35,7 @@ import type {
   CompetitorIntelligence,
   ThumbnailIntelligence,
   ShortsIntelligence,
-} from '../../lib/database';
+} from '../../types';
 
 interface ApprovalRequest {
   type: 'seo' | 'upload' | 'thumbnail' | 'shorts' | 'growth';

@@ -16,7 +16,7 @@ import {
 import {
   getUploadQueue, queueForUpload, retryUpload, getVideos,
 } from '../api';
-import type { ScheduledPublish, Video, UploadQueue } from '../../lib/database';
+import type { ScheduledPublish, Video, UploadQueue } from '../../types';
 import { channelIntelligence } from './channel-history';
 import { IntelligenceCore, getAIClient } from './intelligence-core';
 

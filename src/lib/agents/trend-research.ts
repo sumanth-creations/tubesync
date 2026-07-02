@@ -18,7 +18,7 @@ import {
   actionTrend,
   updateAgentState,
 } from './extended-api';
-import type { TrendIntelligence, DetectedTrend } from '../../lib/database';
+import type { TrendIntelligence, DetectedTrend } from '../../types';
 
 interface TrendAnalysis {
   topic: string;

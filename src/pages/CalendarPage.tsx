@@ -4,7 +4,7 @@ import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import toast from 'react-hot-toast';
 import { getScheduledVideos } from '../lib/api';
-import type { Video } from '../lib/database';
+import type { Video } from '../types';
 
 export default function CalendarPage() {
   const [date, setDate] = useState<Date>(new Date());

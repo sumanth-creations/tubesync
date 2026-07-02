@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useChannels } from '../hooks/useChannels';
 import { useVideos } from '../hooks/useVideos';
 import { getDashboardStats, getActivities } from '../lib/api';
-import type { Activity } from '../lib/database';
+import type { Activity } from '../types';
 
 interface DashboardStats {
   totalVideos: number;

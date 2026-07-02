@@ -14,7 +14,7 @@ import {
   getChannelHistory, recordChannelSnapshot,
 } from './api';
 import { getYouTubeChannels } from '../api';
-import type { ChannelHistory, YouTubeChannel } from '../../lib/database';
+import type { ChannelHistory, YouTubeChannel } from '../../types';
 import { IntelligenceCore, getAIClient } from './intelligence-core';
 
 interface ChannelSnapshot {

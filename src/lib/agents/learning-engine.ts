@@ -14,7 +14,7 @@ import {
   getKnowledge, addKnowledge, incrementKnowledgeUsage,
   getSession, createSession, endSession, getSessionMessages, addMessage,
 } from './api';
-import type { AgentMemory, AgentKnowledge, AgentSession } from '../../lib/database';
+import type { AgentMemory, AgentKnowledge, AgentSession } from '../../types';
 import { IntelligenceCore, getAIClient } from './intelligence-core';
 
 interface LearningContext {
