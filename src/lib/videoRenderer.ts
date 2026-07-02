@@ -1,41 +1,24 @@
 // src/lib/videoRenderer.ts
-//
-// 100% free, client-side video generation:
-// 1. Downloads 3s hook from YouTube source
-// 2. Generates 21s voiceover with browser TTS
-// 3. Mixes both using FFmpeg.wasm → 24s Short
-// 4. No paid API needed
-//
-// Limitations:
-// - Voice is robotic browser TTS
-// - Runs in browser tab only
-// - Output.webm - YouTube accepts it
-
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
-export interface Slide {
-  text: string;
-}
-
+export interface Slide { text: string; }
 export interface RenderProgress {
   stage: 'preparing' | 'downloading' | 'rendering' | 'finalizing' | 'done';
   slideIndex: number;
   totalSlides: number;
   percent?: number;
 }
-
 export interface RenderInput {
   sourceURL: string;
-  hookStartTime: string; // "01:23" format
+  hookStartTime: string;
   script: string;
   title: string;
 }
 
-const CANVAS_WIDTH = 1080; // Vertical for Shorts
+const CANVAS_WIDTH = 1080;
 const CANVAS_HEIGHT = 1920;
 
-// ============ UTILS ============
 export function trimScriptToDuration(script: string, targetSeconds = 21): string {
   const wordsPerSecond = 2.3;
   const maxWords = Math.round(targetSeconds * wordsPerSecond);
@@ -62,7 +45,6 @@ export function scriptToSlides(script: string, maxCharsPerSlide = 140): Slide[] 
   return slides.length > 0? slides : [{ text: script.slice(0, maxCharsPerSlide) }];
 }
 
-// ============ TTS ============
 function pickVoice(): SpeechSynthesisVoice | null {
   const voices = speechSynthesis.getVoices();
   return voices.find((v) => v.lang.startsWith('en')) || voices[0] || null;
@@ -71,24 +53,14 @@ function pickVoice(): SpeechSynthesisVoice | null {
 function speakText(text: string): Promise<Blob> {
   return new Promise((resolve) => {
     if (!('speechSynthesis' in window)) {
-      // Fallback: silent audio
-      const ctx = new AudioContext();
-      const buffer = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate);
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      const dest = ctx.createMediaStreamDestination();
-      source.connect(dest);
-      source.start();
       resolve(new Blob([], { type: 'audio/webm' }));
       return;
     }
-
     const utterance = new SpeechSynthesisUtterance(text);
     const voice = pickVoice();
     if (voice) utterance.voice = voice;
     utterance.rate = 0.95;
     
-    // Capture audio using MediaRecorder
     const audioContext = new AudioContext();
     const dest = audioContext.createMediaStreamDestination();
     const mediaRecorder = new MediaRecorder(dest.stream);
@@ -98,23 +70,19 @@ function speakText(text: string): Promise<Blob> {
     mediaRecorder.onstop = () => resolve(new Blob(chunks, { type: 'audio/webm' }));
     
     utterance.onstart = () => mediaRecorder.start();
-    utterance.onend = () => {
-      setTimeout(() => mediaRecorder.stop(), 500);
-    };
+    utterance.onend = () => setTimeout(() => mediaRecorder.stop(), 500);
     utterance.onerror = () => resolve(new Blob([]));
     
     speechSynthesis.speak(utterance);
   });
 }
 
-// ============ MAIN RENDER: 3s Hook + 21s Voice ============
 export async function renderShortFromSource(
   input: RenderInput,
   onProgress?: (p: RenderProgress) => void
 ): Promise<{ blob: Blob; hasAudio: boolean }> {
   onProgress?.({ stage: 'preparing', slideIndex: 0, totalSlides: 1, percent: 0 });
 
-  // 1. Load FFmpeg
   const ffmpeg = new FFmpeg();
   const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
   await ffmpeg.load({
@@ -124,26 +92,20 @@ export async function renderShortFromSource(
 
   onProgress?.({ stage: 'downloading', slideIndex: 0, totalSlides: 1, percent: 10 });
 
-  // 2. Download 3s hook from YouTube using ytdl
-  // NOTE: Client-side ytdl may be blocked by CORS. For production, use Supabase Edge Function
-  // For now, we'll use a placeholder - you need to implement backend download
   const hookBlob = await downloadYouTubeClip(input.sourceURL, input.hookStartTime, 3);
   await ffmpeg.writeFile('hook.mp4', await fetchFile(hookBlob));
 
   onProgress?.({ stage: 'rendering', slideIndex: 0, totalSlides: 1, percent: 30 });
 
-  // 3. Generate 21s voiceover
   const voiceBlob = await speakText(input.script);
   await ffmpeg.writeFile('voice.webm', await fetchFile(voiceBlob));
 
-  // 4. Create text slides for 21s portion
   const slides = scriptToSlides(input.script);
   const canvas = document.createElement('canvas');
   canvas.width = CANVAS_WIDTH;
   canvas.height = CANVAS_HEIGHT;
   const ctx = canvas.getContext('2d')!;
 
-  // Render slides to video
   const canvasStream = canvas.captureStream(30);
   const mediaRecorder = new MediaRecorder(canvasStream, { mimeType: 'video/webm' });
   const chunks: BlobPart[] = [];
@@ -153,7 +115,7 @@ export async function renderShortFromSource(
   
   for (let i = 0; i < slides.length; i++) {
     drawSlide(ctx, slides[i], i + 1, slides.length, input.title);
-    await new Promise(r => setTimeout(r, 21000 / slides.length)); // 21s total
+    await new Promise(r => setTimeout(r, 21000 / slides.length));
     onProgress?.({ stage: 'rendering', slideIndex: i, totalSlides: slides.length, percent: 30 + (i / slides.length) * 40 });
   }
   
@@ -164,7 +126,6 @@ export async function renderShortFromSource(
 
   onProgress?.({ stage: 'finalizing', slideIndex: 1, totalSlides: 1, percent: 80 });
 
-  // 5. Concatenate: 3s hook + 21s voice/slides
   await ffmpeg.exec([
     '-i', 'hook.mp4',
     '-i', 'slides.webm',
@@ -178,10 +139,10 @@ export async function renderShortFromSource(
   onProgress?.({ stage: 'done', slideIndex: 1, totalSlides: 1, percent: 100 });
 
   const data = await ffmpeg.readFile('output.webm');
-  return { blob: new Blob([data], { type: 'video/webm' }), hasAudio: true };
+  const uint8Data = data as Uint8Array;
+  return { blob: new Blob([uint8Data], { type: 'video/webm' }), hasAudio: true };
 }
 
-// ============ HELPER: Draw Slide ============
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const words = text.split(' ');
   const lines: string[] = [];
@@ -200,30 +161,25 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
 }
 
 function drawSlide(ctx: CanvasRenderingContext2D, slide: Slide, slideNumber: number, totalSlides: number, title: string) {
-  // Background
   const gradient = ctx.createLinearGradient(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   gradient.addColorStop(0, '#0f172a');
   gradient.addColorStop(1, '#1e293b');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-  // Accent bar
   ctx.fillStyle = '#dc2626';
   ctx.fillRect(0, CANVAS_HEIGHT - 12, CANVAS_WIDTH, 12);
 
-  // Title
   ctx.fillStyle = '#94a3b8';
   ctx.font = '600 32px sans-serif';
   ctx.textAlign = 'left';
   ctx.fillText(title.toUpperCase(), 60, 80);
 
-  // Progress
   ctx.fillStyle = '#64748b';
   ctx.font = '400 28px sans-serif';
   ctx.textAlign = 'right';
   ctx.fillText(`${slideNumber}/${totalSlides}`, CANVAS_WIDTH - 60, 80);
 
-  // Main text
   ctx.fillStyle = '#f8fafc';
   ctx.font = '700 64px sans-serif';
   ctx.textAlign = 'center';
@@ -236,13 +192,8 @@ function drawSlide(ctx: CanvasRenderingContext2D, slide: Slide, slideNumber: num
   });
 }
 
-// ============ DOWNLOAD YT CLIP (PLACEHOLDER) ============
-// NOTE: This needs backend implementation due to CORS
-// For now, returns empty blob. Implement using Supabase Edge Function + ytdl-core
 async function downloadYouTubeClip(url: string, startTime: string, duration: number): Promise<Blob> {
-  // TODO: Call Supabase Edge Function that uses ytdl-core to download segment
   console.warn('downloadYouTubeClip: Implement backend download');
-  // Placeholder: 3s black video
   const canvas = document.createElement('canvas');
   canvas.width = CANVAS_WIDTH;
   canvas.height = CANVAS_HEIGHT;
@@ -260,7 +211,6 @@ async function downloadYouTubeClip(url: string, startTime: string, duration: num
   return new Blob(chunks, { type: 'video/webm' });
 }
 
-// ============ LEGACY: Slides Only (No Hook) ============
 export async function renderSlideshowVideo(
   slides: Slide[],
   title: string,
@@ -302,10 +252,9 @@ export async function renderSlideshowVideo(
     hasAudio = false;
   }
 
-  const combinedStream = new MediaStream([
-  ...canvasStream.getVideoTracks(),
-  ...(audioTrack? [audioTrack] : []),
-  ]);
+  const videoTracks = canvasStream.getVideoTracks();
+  const audioTracks = audioTrack? [audioTrack] : [];
+  const combinedStream = new MediaStream([...videoTracks,...audioTracks]);
 
   const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')? 'video/webm;codecs=vp9,opus' : 'video/webm';
   const recorder = new MediaRecorder(combinedStream, { mimeType });
