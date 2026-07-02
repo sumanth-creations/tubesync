@@ -350,4 +350,4 @@ function speakSlide(text: string): Promise<void> {
     utterance.onerror = () => resolve();
     speechSynthesis.speak(utterance);
   });
-}
+}=
