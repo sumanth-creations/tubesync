@@ -1,4 +1,5 @@
 // src/pages/GeneratePage.tsx
+import { Video } from '../lib/database';
 import { useState, useEffect } from 'react'
 import { createShortsFromLink, getRenderQueue } from '../lib/api'
 import toast from 'react-hot-toast'

@@ -139,8 +139,8 @@ export async function renderShortFromSource(
   onProgress?.({ stage: 'done', slideIndex: 1, totalSlides: 1, percent: 100 });
 
   const data = await ffmpeg.readFile('output.webm');
-  const uint8Data = data as Uint8Array;
-  return { blob: new Blob([uint8Data], { type: 'video/webm' }), hasAudio: true };
+  const uint8Array = new Uint8Array(data as ArrayBuffer);
+  return { blob: new Blob([uint8Array], { type: 'video/webm' }), hasAudio: true };
 }
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
