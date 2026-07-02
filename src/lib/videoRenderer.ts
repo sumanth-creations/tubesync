@@ -57,6 +57,7 @@ export function scriptToSlides(script: string, maxCharsPerSlide = 140): Slide[] 
     } else {
       buffer = (buffer + ' ' + sentence).trim();
     }
+  }
   if (buffer) slides.push({ text: buffer.trim() });
   return slides.length > 0? slides : [{ text: script.slice(0, maxCharsPerSlide) }];
 }
@@ -168,9 +169,7 @@ export async function renderShortFromSource(
     '-i', 'hook.mp4',
     '-i', 'slides.webm',
     '-i', 'voice.webm',
-    '-filter_complex', '[1:v][2:a]concat=n=1:v=1:a=1[slides];[0:v][0:a][slides]concat=n=2:v=1:a=1[outv][outa]',
-    '-map', '[outv]',
-    '-map', '[outa]',
+    '-filter_complex', '[1:v][2:a]concat=n=1:v=1:a=1[slides];[0:v][0:a][slides]concat=n=2:v=1:a=1',
     '-c:v', 'libvpx-vp9',
     '-c:a', 'libopus',
     'output.webm'
@@ -304,8 +303,8 @@ export async function renderSlideshowVideo(
   }
 
   const combinedStream = new MediaStream([
-   ...canvasStream.getVideoTracks(),
-   ...(audioTrack? [audioTrack] : []),
+  ...canvasStream.getVideoTracks(),
+  ...(audioTrack? [audioTrack] : []),
   ]);
 
   const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')? 'video/webm;codecs=vp9,opus' : 'video/webm';
