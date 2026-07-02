@@ -18,7 +18,7 @@ import { ChannelIntelligence, channelIntelligence } from './channel-history';
 import { GrowthHub, growthHub } from './growth-intelligence';
 import { CopyrightMonitor, copyrightMonitor } from './copyright-monitor';
 import { SmartQueue, smartQueue } from './smart-queue';
-import type { Video, YouTubeChannel, AgentMemory } from '../../types';
+import type { Video, YouTubeChannel, AgentMemory } from '../../lib/database';
 import { createSession, endSession, addMessage } from './api';
 
 interface AgentContext {

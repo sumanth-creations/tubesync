@@ -13,7 +13,7 @@
 import {
   getCopyrightReports, createCopyrightReport, resolveCopyrightReport,
 } from './api';
-import type { CopyrightReport, Video } from '../../types';
+import type { CopyrightReport, Video } from '../../lib/database';
 import { IntelligenceCore, getAIClient } from './intelligence-core';
 
 interface CopyrightRisk {

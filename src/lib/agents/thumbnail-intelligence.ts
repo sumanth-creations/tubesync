@@ -18,7 +18,7 @@ import {
   createThumbnailAnalysis,
   updateAgentState,
 } from './extended-api';
-import type { ThumbnailIntelligence, ThumbnailScore } from '../../types';
+import type { ThumbnailIntelligence, ThumbnailScore } from '../../lib/database';
 
 interface ThumbnailAssessment {
   overallScore: number;

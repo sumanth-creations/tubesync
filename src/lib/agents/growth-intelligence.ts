@@ -14,7 +14,7 @@ import {
   getGrowthInsights, createGrowthInsight, markInsightActioned,
   getMemories,
 } from './api';
-import type { GrowthIntelligence, Video, YouTubeChannel } from '../../types';
+import type { GrowthIntelligence, Video, YouTubeChannel } from '../../lib/database';
 import { IntelligenceCore, getAIClient } from './intelligence-core';
 import { channelIntelligence } from './channel-history';
 import { seoAnalyzer } from './seo-analyzer';

@@ -14,7 +14,7 @@ import { supabase } from '../supabase';
 import type {
   TrendIntelligence, CompetitorIntelligence, ThumbnailIntelligence,
   ShortsIntelligence, AgentState, IntelligenceDecision,
-} from '../../types';
+} from '../../lib/database';
 
 // Helper to log and format Supabase errors
 function formatError(operation: string, error: { message?: string; code?: string; details?: string } | null): Error {

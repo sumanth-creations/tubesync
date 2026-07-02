@@ -18,7 +18,7 @@ import {
   updateShortsJob,
   updateAgentState,
 } from './extended-api';
-import type { ShortsIntelligence, ViralMoment } from '../../types';
+import type { ShortsIntelligence, ViralMoment } from '../../lib/database';
 
 interface TranscriptSegment {
   text: string;
