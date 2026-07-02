@@ -545,3 +545,30 @@ export interface IntelligenceReport {
   thumbnailQueue: number;
   overallHealth: number;
 }
+export interface Video {
+  id: string;
+  user_id: string;
+  title: string;
+  description?: string;
+  script?: string;
+  status: 'draft' | 'rendering' | 'scheduled' | 'posted' | 'failed' | 'uploaded' | 'generating' | 'queued' | 'uploading' | 'completed' | 'ready' | 'processing';
+  thumbnail_url?: string;
+  youtube_video_id?: string;
+  scheduled_publish_at?: string;
+  progress?: number;
+  error_message?: string;
+  is_short?: boolean;
+  video_id?: string;
+  viral_score?: number;
+  seo_score?: number;
+  tags?: string[];
+  priority?: number;
+  retry_count?: number;
+  duration?: number;
+  channel_id?: string;
+  hook_context?: string;
+  hook_start_time?: string;
+  scheduled_time?: string;
+  created_at: string;
+  updated_at: string;
+}
