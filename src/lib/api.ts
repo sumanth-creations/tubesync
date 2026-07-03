@@ -672,7 +672,7 @@ export async function chatWithAgent(
   return result.reply;
 }
 
-// ============ AI Agent Functions - ONLY ONE COPY ============
+// ============ AI Agent Functions ============
 export const getUserVideos = async (): Promise<Video[]> => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not signed in');
@@ -713,14 +713,15 @@ export const getChannelStats = async () => {
   };
 };
 
-// ============ WAR MODE: LINK → 5 SHORTS ============
+// ============ WAR MODE: LINK → 5 SHORTS - FIXED ✅ ============
 export async function createShortsFromLink(videoURL: string): Promise<Video[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not signed in')
 
   const { data: { session } } = await supabase.auth.getSession()
   
-  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/youtube-upload-worker`, {
+  // 🔥 FIXED: daily_uploader ani marchu, youtube-upload-worker kadu
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/daily_uploader`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

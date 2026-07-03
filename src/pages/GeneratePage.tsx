@@ -26,7 +26,7 @@ export default function GeneratePage() {
 
   const handleGenerate = async () => {
     if (!url.trim()) return toast.error('YouTube link paste chey ra')
-    if (!url.includes('youtube.com') &&!url.includes('youtu.be')) {
+    if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
       return toast.error('Valid YouTube link ivvu')
     }
     
@@ -38,6 +38,7 @@ export default function GeneratePage() {
       setUrl('')
       await loadRenderQueue()
     } catch (e: any) {
+      console.error('War Mode Error:', e)
       toast.error(e.message || 'Failed to generate shorts')
     }
     setLoading(false)
@@ -88,11 +89,11 @@ export default function GeneratePage() {
           </div>
           <button 
             onClick={handleGenerate} 
-            disabled={loading ||!url.trim()}
+            disabled={loading || !url.trim()}
             className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
           >
-            {loading? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-            {loading? 'Generating...' : 'Generate 5 Shorts'}
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+            {loading ? 'Generating...' : 'Generate 5 Shorts'}
           </button>
         </div>
       </div>
@@ -113,7 +114,7 @@ export default function GeneratePage() {
                       <span className="font-medium">Hook:</span> {short.hook_context} @ {short.hook_start_time}
                     </div>
                     <div className="text-sm text-gray-500">
-                      <span className="font-medium">Scheduled:</span> {short.scheduled_time? new Date(short.scheduled_time).toLocaleString() : 'N/A'}
+                      <span className="font-medium">Scheduled:</span> {short.scheduled_time ? new Date(short.scheduled_time).toLocaleString() : 'N/A'}
                     </div>
                   </div>
                   <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(short.status)}`}>
