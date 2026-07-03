@@ -721,7 +721,7 @@ export async function createShortsFromLink(videoURL: string): Promise<Video[]> {
   const { data: { session } } = await supabase.auth.getSession()
   
   // 🔥 FIXED: daily_uploader ani marchu, youtube-upload-worker kadu
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/daily_uploader`, {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/daily-uploader`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
