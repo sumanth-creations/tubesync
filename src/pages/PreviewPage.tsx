@@ -1,16 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getRenderQueue, approveAndUploadShort, getYouTubeChannels } from '../lib/api'
-import { Video, YouTubeChannel } from '../types'
+import { Short, YouTubeChannel } from '../types' // FIXED
 import toast from 'react-hot-toast'
 import { Play, Edit3, Upload, ArrowLeft, Sparkles, Clock } from 'lucide-react'
 
 export default function PreviewPage() {
-  const [shorts, setShorts] = useState<Video[]>([])
+  const [shorts, setShorts] = useState<Short[]>([]) // FIXED
   const [channels, setChannels] = useState<YouTubeChannel[]>([])
   const [selectedChannel, setSelectedChannel] = useState('')
   const [loading, setLoading] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -37,7 +36,7 @@ export default function PreviewPage() {
     setLoading(false)
   }
 
-  const updateShortField = (id: string, field: string, value: string) => {
+  const updateShortField = (id: string, field: keyof Short, value: string) => {
     setShorts(shorts.map(s => s.id === id? {...s, [field]: value } : s))
   }
 
@@ -59,7 +58,7 @@ export default function PreviewPage() {
           onChange={e => setSelectedChannel(e.target.value)}
           className="w-full mt-2 p-2 border rounded-lg"
         >
-          {channels.map(c => <option key={c.id} value={c.id}>{c.channel_name}</option>)}
+          {channels.map(c => <option key={c.id} value={c.id}>{c.channel_title}</option>)} {/* FIXED */}
         </select>
       </div>
 
@@ -75,13 +74,10 @@ export default function PreviewPage() {
               <div className="flex gap-6">
                 {/* Video Preview */}
                 <div className="w-80">
-                  {short.preview_url? (
-                    <video src={short.preview_url} controls className="w-full rounded-xl bg-black" />
-                  ) : (
-                    <div className="w-full h-48 bg-gray-200 rounded-xl flex items-center justify-center">
-                      <Play className="w-12 h-12 text-gray-400" />
-                    </div>
-                  )}
+                  <div className="w-full h-48 bg-gray-200 rounded-xl flex items-center justify-center">
+                    <Play className="w-12 h-12 text-gray-400" />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2 text-center">Duration: {short.duration}s</p>
                 </div>
 
                 {/* Details */}
@@ -95,15 +91,15 @@ export default function PreviewPage() {
                     className="w-full p-2 border rounded-lg mb-3"
                   />
 
-                  <label className="text-sm font-medium">Script</label>
+                  <label className="text-sm font-medium">Description</label>
                   <textarea
-                    value={short.script}
-                    onChange={e => updateShortField(short.id, 'script', e.target.value)}
-                    rows={4}
+                    value={short.description || ''}
+                    onChange={e => updateShortField(short.id, 'description', e.target.value)}
+                    rows={3}
                     className="w-full p-2 border rounded-lg mb-3"
                   />
 
-                  <label className="text-sm font-medium">Hook: {short.hook_context} @ {short.hook_start_time}</label>
+                  <label className="text-sm font-medium">Clip: {short.start_time}s to {short.end_time}s</label>
 
                   <button
                     onClick={() => handleApprove(short.id)}

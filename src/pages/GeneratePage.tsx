@@ -13,17 +13,13 @@ export default function GeneratePage() {
   useEffect(() => { loadRenderQueue() }, [])
 
   const loadRenderQueue = async () => {
-    try { 
-      const queue = await getRenderQueue(); 
-      setRenderQueue(queue) 
-    } catch (e) { 
-      console.error('Failed to load render queue', e) 
-    }
+    try { const queue = await getRenderQueue(); setRenderQueue(queue) }
+    catch (e) { console.error('Failed to load render queue', e) }
   }
 
   const handleGenerate = async () => {
     if (!url.trim()) return toast.error('YouTube link paste chey ra')
-    if (!url.includes('youtube.com') && !url.includes('youtu.be')) return toast.error('Valid YouTube link ivvu')
+    if (!url.includes('youtube.com') &&!url.includes('youtu.be')) return toast.error('Valid YouTube link ivvu')
     setLoading(true)
     try {
       const result = await createShortsFromLink(url)
@@ -31,19 +27,16 @@ export default function GeneratePage() {
       toast.success(`${result.length} Shorts queue lo padday!`)
       setUrl('')
       await loadRenderQueue()
-    } catch (e: any) { 
-      toast.error(e.message || 'Failed to generate shorts') 
-    }
+    } catch (e: any) { toast.error(e.message || 'Failed to generate shorts') }
     setLoading(false)
   }
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'draft': return 'text-gray-600 bg-gray-50'
-      case 'pending': case 'pending_render': return 'text-orange-600 bg-orange-50'
-      case 'rendering': return 'text-blue-600 bg-blue-50'
+      case 'pending': return 'text-orange-600 bg-orange-50'
+      case 'generating': return 'text-blue-600 bg-blue-50'
       case 'ready': return 'text-green-600 bg-green-50'
-      case 'approved': return 'text-purple-600 bg-purple-50'
+      case 'uploaded': return 'text-purple-600 bg-purple-50'
       case 'failed': return 'text-red-600 bg-red-50'
       default: return 'text-gray-600 bg-gray-50'
     }
@@ -51,9 +44,10 @@ export default function GeneratePage() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'draft': case 'pending': case 'pending_render': return <Clock className="w-4 h-4" />
-      case 'rendering': return <Loader2 className="w-4 h-4 animate-spin" />
-      case 'ready': case 'approved': return <CheckCircle2 className="w-4 h-4" />
+      case 'pending': return <Clock className="w-4 h-4" />
+      case 'generating': return <Loader2 className="w-4 h-4 animate-spin" />
+      case 'ready': return <CheckCircle2 className="w-4 h-4" />
+      case 'uploaded': return <CheckCircle2 className="w-4 h-4" />
       case 'failed': return <AlertCircle className="w-4 h-4" />
       default: return null
     }
@@ -62,31 +56,18 @@ export default function GeneratePage() {
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
-          <Sparkles className="w-8 h-8 text-red-600" />Link → 5 Shorts War Mode
-        </h1>
+        <h1 className="text-3xl font-bold mb-2 flex items-center gap-3"><Sparkles className="w-8 h-8 text-red-600" />Link → 5 Shorts War Mode</h1>
         <p className="text-gray-600">Paste any YouTube link. AI will find 5 viral 3-sec moments + create 21s shorts with accurate script.</p>
       </div>
       <div className="bg-white rounded-2xl border-gray-200 p-6 mb-6">
         <div className="flex gap-2">
           <div className="flex-1 relative">
             <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input 
-              value={url} 
-              onChange={e => setUrl(e.target.value)} 
-              placeholder="https://youtube.com/watch?v=..." 
-              className="w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-red-500 outline-none" 
-              disabled={loading} 
-              onKeyDown={e => e.key === 'Enter' && handleGenerate()} 
-            />
+            <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://youtube.com/watch?v=..." className="w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-red-500 outline-none" disabled={loading} onKeyDown={e => e.key === 'Enter' && handleGenerate()} />
           </div>
-          <button 
-            onClick={handleGenerate} 
-            disabled={loading || !url.trim()} 
-            className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-xl font-semibold disabled:opacity-50 flex items-center gap-2"
-          >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-            {loading ? 'Generating...' : 'Generate 5 Shorts'}
+          <button onClick={handleGenerate} disabled={loading ||!url.trim()} className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-xl font-semibold disabled:opacity-50 flex items-center gap-2">
+            {loading? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+            {loading? 'Generating...' : 'Generate 5 Shorts'}
           </button>
         </div>
       </div>
@@ -99,11 +80,11 @@ export default function GeneratePage() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="font-semibold text-lg mb-1">{i + 1}. {short.title}</div>
-                    <div className="text-sm text-gray-600 mb-2"><span className="font-medium">Hook:</span> {short.hook_context} @ {short.hook_start_time}s</div>
+                    <div className="text-sm text-gray-600 mb-2"><span className="font-medium">Start:</span> {short.start_time}s - {short.end_time}s</div>
                   </div>
                   <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(short.status)}`}>
                     {getStatusIcon(short.status)}
-                    {short.status.replace('_', ' ')}
+                    {short.status.replace('_', ')}
                   </div>
                 </div>
               </div>
@@ -120,11 +101,11 @@ export default function GeneratePage() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="font-semibold mb-1">{video.title}</div>
-                    <div className="text-sm text-gray-600"><span className="font-medium">Hook:</span> {video.hook_context} @ {video.hook_start_time}s</div>
+                    <div className="text-sm text-gray-600"><span className="font-medium">Start:</span> {video.start_time}s - {video.end_time}s</div>
                   </div>
                   <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(video.status)}`}>
                     {getStatusIcon(video.status)}
-                    {video.status.replace('_', ' ')}
+                    {video.status.replace('_', ')}
                   </div>
                 </div>
               </div>
