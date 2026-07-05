@@ -7,27 +7,31 @@ import { Loader2, Sparkles, Youtube, Clock, CheckCircle2, AlertCircle } from 'lu
 export default function GeneratePage() {
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
-  const [shorts, setShorts] = useState<Short[]>([])
+  const [shorts, setShorts] = useState<Short[]>([]) // Start with []
   const [renderQueue, setRenderQueue] = useState<Short[]>([])
 
   useEffect(() => { loadRenderQueue() }, [])
 
   const loadRenderQueue = async () => {
-    try { const queue = await getRenderQueue(); setRenderQueue(queue) }
+    try { const queue = await getRenderQueue(); setRenderQueue(queue || []) }
     catch (e) { console.error('Failed to load render queue', e) }
   }
 
   const handleGenerate = async () => {
     if (!url.trim()) return toast.error('YouTube link paste chey ra')
-    if (!url.includes('youtube.com') && !url.includes('youtu.be')) return toast.error('Valid YouTube link ivvu')
+    if (!url.includes('youtube.com') &&!url.includes('youtu.be')) return toast.error('Valid YouTube link ivvu')
     setLoading(true)
+    setShorts([]) // Clear old results
     try {
       const result = await createShortsFromLink(url)
-      setShorts(result)
-      toast.success(`${result.length} Shorts queue lo padday!`)
+      setShorts(result || []) // FIX: NULL SAFE
+      toast.success(`${(result || []).length} Shorts queue lo padday!`)
       setUrl('')
       await loadRenderQueue()
-    } catch (e: any) { toast.error(e.message || 'Failed to generate shorts') }
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to generate shorts')
+      setShorts([]) // FIX: Error ayithe empty chey
+    }
     setLoading(false)
   }
 
@@ -65,17 +69,17 @@ export default function GeneratePage() {
             <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://youtube.com/watch?v=..." className="w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-red-500 outline-none" disabled={loading} onKeyDown={e => e.key === 'Enter' && handleGenerate()} />
           </div>
-          <button onClick={handleGenerate} disabled={loading || !url.trim()} className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-xl font-semibold disabled:opacity-50 flex items-center gap-2">
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-            {loading ? 'Generating...' : 'Generate 5 Shorts'}
+          <button onClick={handleGenerate} disabled={loading ||!url.trim()} className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-xl font-semibold disabled:opacity-50 flex items-center gap-2">
+            {loading? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+            {loading? 'Generating...' : 'Generate 5 Shorts'}
           </button>
         </div>
       </div>
-      {shorts.length > 0 && (
+      {(shorts || []).length > 0 && ( // FIX: NULL SAFE
         <div className="bg-white rounded-2xl border-gray-200 p-6 mb-6">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><CheckCircle2 className="w-6 h-6 text-green-600" />Just Generated - {shorts.length} Shorts</h2>
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><CheckCircle2 className="w-6 h-6 text-green-600" />Just Generated - {(shorts || []).length} Shorts</h2>
           <div className="space-y-3">
-            {shorts.map((short, i) => (
+            {(shorts || []).map((short, i) => ( // FIX: NULL SAFE
               <div key={short.id} className="border border-gray-200 p-4 rounded-xl bg-gray-50">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -84,7 +88,7 @@ export default function GeneratePage() {
                   </div>
                   <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(short.status)}`}>
                     {getStatusIcon(short.status)}
-                    {short.status.replace('_', ' ')}
+                    {short.status.replace('_', ')}
                   </div>
                 </div>
               </div>
@@ -92,11 +96,11 @@ export default function GeneratePage() {
           </div>
         </div>
       )}
-      {renderQueue.length > 0 && (
+      {(renderQueue || []).length > 0 && ( // FIX: NULL SAFE
         <div className="bg-white rounded-2xl border-gray-200 p-6">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Clock className="w-6 h-6 text-orange-600" />Render Queue - {renderQueue.length} Pending</h2>
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Clock className="w-6 h-6 text-orange-600" />Render Queue - {(renderQueue || []).length} Pending</h2>
           <div className="space-y-3">
-            {renderQueue.map((video) => (
+            {(renderQueue || []).map((video) => ( // FIX: NULL SAFE
               <div key={video.id} className="border border-gray-200 p-4 rounded-xl bg-orange-50/50">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -105,7 +109,7 @@ export default function GeneratePage() {
                   </div>
                   <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(video.status)}`}>
                     {getStatusIcon(video.status)}
-                    {video.status.replace('_', ' ')}
+                    {video.status.replace('_', ')}
                   </div>
                 </div>
               </div>
