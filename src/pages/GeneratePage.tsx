@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { createShortsFromLink, getRenderQueue } from '../lib/api'
 import { Short } from '../types'
 import toast from 'react-hot-toast'
-import { Loader2, Sparkles, Youtube, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Loader2, Sparkles, Youtube, Clock, CheckCircle2, AlertCircle, Download, Play } from 'lucide-react'
+import { supabase } from '../lib/supabase'
 
 export default function GeneratePage() {
   const [url, setUrl] = useState('')
@@ -10,7 +11,11 @@ export default function GeneratePage() {
   const [shorts, setShorts] = useState<Short[]>([])
   const [renderQueue, setRenderQueue] = useState<Short[]>([])
 
-  useEffect(() => { loadRenderQueue() }, [])
+  useEffect(() => { 
+    loadRenderQueue()
+    const interval = setInterval(loadRenderQueue, 5000) // 5s ki 1 sari refresh chey
+    return () => clearInterval(interval)
+  }, [])
 
   const loadRenderQueue = async () => {
     try { 
@@ -18,6 +23,28 @@ export default function GeneratePage() {
       setRenderQueue(queue || []) 
     } catch (e) { 
       console.error('Failed to load render queue', e) 
+    }
+  }
+
+  const triggerRender = async (short: Short) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yt-render`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${session?.access_token}`, 
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({
+          short_id: short.id,
+          youtube_url: url,
+          start_time: short.start_time,
+          end_time: short.end_time,
+          title: short.title
+        })
+      })
+    } catch (e) {
+      console.error('Render trigger failed', e)
     }
   }
 
@@ -29,9 +56,13 @@ export default function GeneratePage() {
     try {
       const result = await createShortsFromLink(url)
       setShorts(result || [])
-      toast.success(`${(result || []).length} Shorts queue lo padday!`)
+      toast.success(`${(result || []).length} Shorts queue lo padday! Rendering started...`)
       setUrl('')
-      await loadRenderQueue()
+      
+      // Ventane render trigger chey
+      result?.forEach(short => triggerRender(short))
+      
+      setTimeout(loadRenderQueue, 2000)
     } catch (e: any) {
       toast.error(e.message || 'Failed to generate shorts')
       setShorts([])
@@ -61,12 +92,15 @@ export default function GeneratePage() {
     }
   }
 
+  const allShorts = [...shorts, ...renderQueue]
+
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2 flex items-center gap-3"><Sparkles className="w-8 h-8 text-red-600" />Link → 5 Shorts War Mode</h1>
-        <p className="text-gray-600">Paste any YouTube link. AI will find 5 viral 3-sec moments + create 21s shorts with accurate script.</p>
+        <p className="text-gray-600">Paste any YouTube link. AI will find 5 viral moments + auto render with AI voiceover.</p>
       </div>
+      
       <div className="bg-white rounded-2xl border-gray-200 p-6 mb-6">
         <div className="flex gap-2">
           <div className="flex-1 relative">
@@ -79,43 +113,51 @@ export default function GeneratePage() {
           </button>
         </div>
       </div>
-      {(shorts || []).length > 0 && (
-        <div className="bg-white rounded-2xl border-gray-200 p-6 mb-6">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><CheckCircle2 className="w-6 h-6 text-green-600" />Just Generated - {(shorts || []).length} Shorts</h2>
-          <div className="space-y-3">
-            {(shorts || []).map((short, i) => (
+
+      {allShorts.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Play className="w-6 h-6 text-red-600" />Your Shorts - {allShorts.length}</h2>
+          <div className="space-y-4">
+            {allShorts.map((short, i) => (
               <div key={short.id} className="border border-gray-200 p-4 rounded-xl bg-gray-50">
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-4 mb-3">
                   <div className="flex-1">
                     <div className="font-semibold text-lg mb-1">{i + 1}. {short.title}</div>
-                    <div className="text-sm text-gray-600 mb-2"><span className="font-medium">Start:</span> {short.start_time}s - {short.end_time}s</div>
+                    <div className="text-sm text-gray-600 mb-1"><span className="font-medium">Clip:</span> {short.start_time}s - {short.end_time}s</div>
+                    {short.hook_context && <div className="text-xs text-gray-500"><span className="font-medium">Hook:</span> {short.hook_context}</div>}
                   </div>
-                  <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(short.status)}`}>
+                  <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium h-fit ${getStatusColor(short.status)}`}>
                     {getStatusIcon(short.status)}
                     {short.status.replace('_', ' ')}
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      {(renderQueue || []).length > 0 && (
-        <div className="bg-white rounded-2xl border-gray-200 p-6">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Clock className="w-6 h-6 text-orange-600" />Render Queue - {(renderQueue || []).length} Pending</h2>
-          <div className="space-y-3">
-            {(renderQueue || []).map((video) => (
-              <div key={video.id} className="border border-gray-200 p-4 rounded-xl bg-orange-50/50">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="font-semibold mb-1">{video.title}</div>
-                    <div className="text-sm text-gray-600"><span className="font-medium">Start:</span> {video.start_time}s - {video.end_time}s</div>
+
+                {/* VIDEO PREVIEW */}
+                {short.status === 'ready' && short.video_url ? (
+                  <div className="mt-3">
+                    <video 
+                      src={short.video_url} 
+                      controls 
+                      className="w-full rounded-lg border bg-black"
+                      style={{maxHeight: '400px'}}
+                    />
+                    <a 
+                      href={short.video_url} 
+                      download={`${short.title}.mp4`}
+                      className="mt-3 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2"
+                    >
+                      <Download className="w-4 h-4" /> Download Short
+                    </a>
                   </div>
-                  <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(video.status)}`}>
-                    {getStatusIcon(video.status)}
-                    {video.status.replace('_', ' ')}
+                ) : short.status === 'generating' ? (
+                  <div className="mt-3 p-3 bg-blue-50 rounded-lg text-sm text-blue-700 flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Rendering with AI voiceover... ~30s
                   </div>
-                </div>
+                ) : (
+                  <div className="mt-3 p-3 bg-orange-50 rounded-lg text-sm text-orange-700">
+                    ⏳ Waiting to render...
+                  </div>
+                )}
               </div>
             ))}
           </div>
