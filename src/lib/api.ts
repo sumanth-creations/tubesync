@@ -357,3 +357,9 @@ export async function approveAndUploadShort(shortId: string, youtubeChannelId: s
   const res = await fetch(`${SUPABASE_URL}/functions/v1/channel-router`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` }, body: JSON.stringify({ short_id: shortId, youtube_channel_id: youtubeChannelId }) });
   if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.error || 'Failed to upload short'); }
 }
+export const createShortsFromLink = async (youtube_url: string) => {
+  const { data, error } = await supabase.functions.invoke('yt-analyzer', { body: { youtube_url } })
+  if (error) throw new Error(error.message)
+  if (data?.error) throw new Error(data.error) // backend error
+  return data.shorts
+}
