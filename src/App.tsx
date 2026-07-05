@@ -7,7 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 import LoginPage from './components/Auth/LoginPage';
 import SignupPage from './components/Auth/SignupPage';
-import AuthCallback from './components/AuthCallback';
+// import AuthCallback from './components/AuthCallback'; // FIXED: File ledu kabatti comment chesam
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 import Layout from './components/Layout/Layout';
 
@@ -70,7 +70,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
-        <Route path="/auth/callback" element={<AuthCallback />} />
+        {/* <Route path="/auth/callback" element={<AuthCallback />} /> */} {/* FIXED: Route ki comment chesam */}
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route path="/" element={<RootRedirect />} />
           <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
