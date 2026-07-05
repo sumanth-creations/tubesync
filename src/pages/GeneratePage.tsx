@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react'
 import { createShortsFromLink, getRenderQueue } from '../lib/api'
-import { Short } from '../types' // FIXED: Video -> Short
+import { Short } from '../types'
 import toast from 'react-hot-toast'
 import { Loader2, Sparkles, Youtube, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
 
 export default function GeneratePage() {
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
-  const [shorts, setShorts] = useState<Short[]>([]) // FIXED
-  const [renderQueue, setRenderQueue] = useState<Short[]>([]) // FIXED
+  const [shorts, setShorts] = useState<Short[]>([])
+  const [renderQueue, setRenderQueue] = useState<Short[]>([])
 
   useEffect(() => {
     loadRenderQueue()
@@ -124,7 +124,7 @@ export default function GeneratePage() {
                   </div>
                   <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(short.status)}`}>
                     {getStatusIcon(short.status)}
-                    {short.status.replace('_', ' ')} {/* FIXED: ' added */}
+                    {short.status.replace('_', ')} {/* FIXED */}
                   </div>
                 </div>
               </div>
@@ -154,7 +154,7 @@ export default function GeneratePage() {
                   </div>
                   <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(video.status)}`}>
                     {getStatusIcon(video.status)}
-                    {video.status.replace('_', ')} {/* FIXED: ' added */}
+                    {video.status.replace('_', ')} {/* FIXED HERE - was missing ' */}
                   </div>
                 </div>
               </div>
