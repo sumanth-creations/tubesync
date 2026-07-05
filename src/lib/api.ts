@@ -46,7 +46,7 @@ export async function signOut() {
 }
 
 export async function getCurrentUser(): Promise<AppUser | null> {
-  const { data: { user } = await supabase.auth.getUser(); // FIXED LINE 49
+  const { data: { user } } = await supabase.auth.getUser(); // FIXED
   if (!user) return null;
   return {
     id: user.id,
@@ -73,7 +73,7 @@ export async function getYouTubeConnectUrl(): Promise<{ authUrl: string; state: 
 }
 
 export async function handleYouTubeCallback(code: string): Promise<{ success: boolean; channel?: Partial<YouTubeChannel> }> {
-  const { data: { user } = await supabase.auth.getUser(); // FIXED LINE 76
+  const { data: { user } = await supabase.auth.getUser(); // FIXED
   if (!user) throw new Error('Not authenticated');
 
   const response = await fetch(
@@ -179,7 +179,7 @@ export async function uploadVideoFile(
   onProgress?: (percent: number) => void,
   fileName = 'video.webm'
 ): Promise<string> {
-  const { data: { user } = await supabase.auth.getUser(); // FIXED LINE 182
+  const { data: { user } = await supabase.auth.getUser(); // FIXED
   if (!user) throw new Error('Not signed in');
 
   const name = file instanceof File? file.name : fileName;
@@ -211,7 +211,7 @@ export async function pushVideoToYouTube(videoId: string, youtubeChannelId: stri
    .eq('id', videoId);
   if (updateError) throw updateError;
 
-  const { data: { session } = await supabase.auth.getSession(); // FIXED LINE 214
+  const { data: { session } = await supabase.auth.getSession(); // FIXED
   const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/youtube-upload`, {
     method: 'POST',
     headers: {
@@ -352,14 +352,14 @@ export async function getUserSettings(): Promise<any> {
 }
 
 export async function saveGeminiApiKey(apiKey: string): Promise<void> {
-  const { data: { user } } = await supabase.auth.getUser(); // FIXED LINE 443
+  const { data: { user } = await supabase.auth.getUser(); // FIXED
   if (!user) throw new Error('Not signed in');
   const { error } = await supabase.from('user_settings').upsert({ user_id: user.id, gemini_api_key: apiKey, updated_at: new Date().toISOString() });
   if (error) throw error;
 }
 
 export async function saveChannelNiche(niche: string): Promise<void> {
-  const { data: { user } } = await supabase.auth.getUser(); // FIXED LINE 452
+  const { data: { user } } = await supabase.auth.getUser(); // FIXED
   if (!user) throw new Error('Not signed in');
   const { error } = await supabase.from('user_settings').upsert({ user_id: user.id, channel_niche: niche, updated_at: new Date().toISOString() });
   if (error) throw error;
@@ -386,7 +386,7 @@ export function suggestBestPostTime(niche?: string): any { return {}; }
 export interface FactsContent { title: string; facts: any[]; social_caption: string; youtube_description: string; image_search_queries: string[]; }
 
 export async function scheduleAutoPublish(videoId: string, youtubeChannelId: string, scheduledFor: Date): Promise<void> {
-  const { data: { user } = await supabase.auth.getUser(); // FIXED LINE 606
+  const { data: { user } = await supabase.auth.getUser(); // FIXED
   if (!user) throw new Error('Not signed in');
   const { error } = await supabase.from('scheduled_publishes').insert({ user_id: user.id, video_id: videoId, youtube_channel_id: youtubeChannelId, scheduled_for: scheduledFor.toISOString(), status: 'pending' });
   if (error) throw error;
@@ -410,7 +410,7 @@ export async function chatWithAgent(message: string, history: any[]): Promise<st
 
 // ============ AI Agent Functions ============
 export const getUserVideos = async (): Promise<Video[]> => {
-  const { data: { user } = await supabase.auth.getUser(); // FIXED LINE 614
+  const { data: { user } = await supabase.auth.getUser(); // FIXED
   if (!user) throw new Error('Not signed in');
   const { data, error } = await supabase.from('videos').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50);
   if (error) throw error;
@@ -418,7 +418,7 @@ export const getUserVideos = async (): Promise<Video[]> => {
 };
 
 export const getChannelStats = async () => {
-  const { data: { user } = await supabase.auth.getUser(); // FIXED LINE 623
+  const { data: { user } = await supabase.auth.getUser(); // FIXED
   if (!user) throw new Error('Not signed in');
   const { data: videos } = await supabase.from('videos').select('*').eq('user_id', user.id);
   const { count: channelCount } = await supabase.from('youtube_channels').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
@@ -427,11 +427,11 @@ export const getChannelStats = async () => {
 
 // ============ WAR MODE: LINK → 5 SHORTS - FIXED ✅ ============
 export async function createShortsFromLink(videoURL: string): Promise<Short[]> {
-  const { data: { user } } = await supabase.auth.getUser(); // FIXED LINE 633
+  const { data: { user } = await supabase.auth.getUser(); // FIXED
   if (!user) throw new Error('Not signed in');
   const { data: parentVideo, error: videoError } = await supabase.from('videos').insert([{ file_path: videoURL, status: 'ready', user_id: user.id, title: 'Processing Long Video...' }]).select().single();
   if (videoError) throw new Error(videoError.message);
-  const { data: { session } = await supabase.auth.getSession(); // FIXED LINE 658
+  const { data: { session } = await supabase.auth.getSession(); // FIXED
   await fetch(`${SUPABASE_URL}/functions/v1/yt-analyzer`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` }, body: JSON.stringify({ video_id: parentVideo.id }) });
   await fetch(`${SUPABASE_URL}/functions/v1/ai-generate`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` }, body: JSON.stringify({ video_id: parentVideo.id }) });
   await fetch(`${SUPABASE_URL}/functions/v1/render-shorts`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` }, body: JSON.stringify({ video_id: parentVideo.id }) });
@@ -454,7 +454,7 @@ export async function triggerVideoRender(videoId: string): Promise<void> {
 
 // ============ NEW: APPROVE & UPLOAD FUNCTION ============
 export async function approveAndUploadShort(shortId: string, youtubeChannelId: string): Promise<void> {
-  const { data: { session } = await supabase.auth.getSession();
+  const { data: { session } = await supabase.auth.getSession(); // FIXED
   const res = await fetch(`${SUPABASE_URL}/functions/v1/channel-router`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` }, body: JSON.stringify({ short_id: shortId, youtube_channel_id: youtubeChannelId }) });
   if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.error || 'Failed to upload short'); }
 }
