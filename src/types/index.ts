@@ -37,6 +37,11 @@ export interface Video {
   tags?: string[];
   priority?: number;
   retry_count?: number;
+  duration?: number;
+  channel_id?: string;
+  hook_context?: string;
+  hook_start_time?: string;
+  scheduled_time?: string;
   created_at: string;
   updated_at: string;
 }
@@ -97,16 +102,20 @@ export interface UploadSchedule {
   updated_at: string;
 }
 
+// FIXED: Shorts kosam new fields add chesam
 export interface Short {
   id: string;
   user_id: string;
   source_video_id: string | null;
+  source_youtube_id: string | null; // ADD
   title: string;
   description: string | null;
   start_time: number | null;
   end_time: number | null;
   duration: number | null;
   viral_score: number | null;
+  hook_context: string | null; // ADD
+  video_url: string | null; // ADD
   captions: string[] | null;
   thumbnail_text: string | null;
   status: 'pending' | 'generating' | 'ready' | 'uploaded' | 'failed';
@@ -544,31 +553,4 @@ export interface IntelligenceReport {
   pendingShorts: number;
   thumbnailQueue: number;
   overallHealth: number;
-}
-export interface Video {
-  id: string;
-  user_id: string;
-  title: string;
-  description?: string;
-  script?: string;
-  status: 'draft' | 'rendering' | 'scheduled' | 'posted' | 'failed' | 'uploaded' | 'generating' | 'queued' | 'uploading' | 'completed' | 'ready' | 'processing';
-  thumbnail_url?: string;
-  youtube_video_id?: string;
-  scheduled_publish_at?: string;
-  progress?: number;
-  error_message?: string;
-  is_short?: boolean;
-  video_id?: string;
-  viral_score?: number;
-  seo_score?: number;
-  tags?: string[];
-  priority?: number;
-  retry_count?: number;
-  duration?: number;
-  channel_id?: string;
-  hook_context?: string;
-  hook_start_time?: string;
-  scheduled_time?: string;
-  created_at: string;
-  updated_at: string;
 }
