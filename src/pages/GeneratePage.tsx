@@ -1,15 +1,14 @@
-// src/pages/GeneratePage.tsx
 import { useState, useEffect } from 'react'
 import { createShortsFromLink, getRenderQueue } from '../lib/api'
-import { Video } from '../types'
+import { Short } from '../types' // Video kadu Short
 import toast from 'react-hot-toast'
 import { Loader2, Sparkles, Youtube, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
 
 export default function GeneratePage() {
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
-  const [shorts, setShorts] = useState<Video[]>([])
-  const [renderQueue, setRenderQueue] = useState<Video[]>([])
+  const [shorts, setShorts] = useState<Short[]>([])
+  const [renderQueue, setRenderQueue] = useState<Short[]>([])
 
   useEffect(() => {
     loadRenderQueue()
@@ -26,10 +25,10 @@ export default function GeneratePage() {
 
   const handleGenerate = async () => {
     if (!url.trim()) return toast.error('YouTube link paste chey ra')
-    if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
+    if (!url.includes('youtube.com') &&!url.includes('youtu.be')) {
       return toast.error('Valid YouTube link ivvu')
     }
-    
+
     setLoading(true)
     try {
       const result = await createShortsFromLink(url)
@@ -79,12 +78,12 @@ export default function GeneratePage() {
         </h1>
         <p className="text-gray-600">Paste any YouTube link. AI will find 5 viral 3-sec moments + create 21s shorts with accurate script.</p>
       </div>
-      
+
       <div className="bg-white rounded-2xl border-gray-200 p-6 mb-6">
         <div className="flex gap-2">
           <div className="flex-1 relative">
             <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input 
+            <input
               value={url}
               onChange={e => setUrl(e.target.value)}
               placeholder="https://youtube.com/watch?v=..."
@@ -93,13 +92,13 @@ export default function GeneratePage() {
               onKeyDown={e => e.key === 'Enter' && handleGenerate()}
             />
           </div>
-          <button 
-            onClick={handleGenerate} 
-            disabled={loading || !url.trim()}
+          <button
+            onClick={handleGenerate}
+            disabled={loading ||!url.trim()}
             className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
           >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-            {loading ? 'Generating...' : 'Generate 5 Shorts'}
+            {loading? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+            {loading? 'Generating...' : 'Generate 5 Shorts'}
           </button>
         </div>
       </div>
@@ -120,12 +119,12 @@ export default function GeneratePage() {
                       <span className="font-medium">Hook:</span> {short.hook_context} @ {short.hook_start_time}
                     </div>
                     <div className="text-sm text-gray-500">
-                      <span className="font-medium">Scheduled:</span> {short.scheduled_time ? new Date(short.scheduled_time).toLocaleString() : 'N/A'}
+                      <span className="font-medium">Scheduled:</span> {short.scheduled_time? new Date(short.scheduled_time).toLocaleString() : 'N/A'}
                     </div>
                   </div>
                   <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(short.status)}`}>
                     {getStatusIcon(short.status)}
-                    {short.status.replace('_', ' ')}
+                    {short.status.replace('_', ')}
                   </div>
                 </div>
               </div>
@@ -155,7 +154,7 @@ export default function GeneratePage() {
                   </div>
                   <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(video.status)}`}>
                     {getStatusIcon(video.status)}
-                    {video.status.replace('_', ')}
+                    {video.status.replace('_', ')} {/* FIXED HERE */}
                   </div>
                 </div>
               </div>
