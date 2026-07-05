@@ -7,7 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 import LoginPage from './components/Auth/LoginPage';
 import SignupPage from './components/Auth/SignupPage';
-import AuthCallback from './components/Auth/AuthCallback';
+import AuthCallback from './components/AuthCallback';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 import Layout from './components/Layout/Layout';
 
@@ -23,6 +23,7 @@ const CalendarPage = lazy(() => import('./pages/CalendarPage'));
 const SEOAnalyzer = lazy(() => import('./pages/SEOAnalyzer'));
 const AIAgentPage = lazy(() => import('./pages/AIAgentPage'));
 const AgentCommandCenter = lazy(() => import('./pages/AgentCommandCenter'));
+const PreviewPage = lazy(() => import('./pages/PreviewPage')); // NEW ADD CHESAM
 
 // Temporary pages - nee daggara levu anukunta
 const PlaceholderPage = ({ title }: { title: string }) => (
@@ -80,6 +81,7 @@ function AppRoutes() {
           <Route path="/agents" element={<Suspense fallback={<PageLoader />}><AgentCommandCenter /></Suspense>} />
           <Route path="/command-center" element={<Suspense fallback={<PageLoader />}><AgentCommandCenter /></Suspense>} />
           <Route path="/generate" element={<Suspense fallback={<PageLoader />}><GeneratePage /></Suspense>} />
+          <Route path="/preview" element={<Suspense fallback={<PageLoader />}><PreviewPage /></Suspense>} /> {/* NEW ROUTE */}
           <Route path="/growth" element={<Suspense fallback={<PageLoader />}><SEOAnalyzer /></Suspense>} />
           <Route path="/seo" element={<Suspense fallback={<PageLoader />}><SEOAnalyzer /></Suspense>} />
           <Route path="/assets" element={<Suspense fallback={<PageLoader />}><ShortsPage /></Suspense>} />
