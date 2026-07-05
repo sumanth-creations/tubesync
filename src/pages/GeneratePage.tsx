@@ -29,22 +29,31 @@ export default function GeneratePage() {
   const triggerRender = async (short: Short) => {
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/yt-render`, {
+      if (!session) throw new Error('Not logged in')
+
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/render-shorts`, {
         method: 'POST',
         headers: { 
-          'Authorization': `Bearer ${session?.access_token}`, 
+          'Authorization': `Bearer ${session.access_token}`, 
           'Content-Type': 'application/json' 
         },
         body: JSON.stringify({
           short_id: short.id,
-          youtube_url: url,
-          start_time: short.start_time,
-          end_time: short.end_time,
-          title: short.title
+          // youtube_url, start_time ikkada avasaram ledu. DB lo untundi
         })
       })
-    } catch (e) {
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Render failed')
+      }
+
+      const data = await res.json()
+      console.log('Render triggered:', data)
+      
+    } catch (e: any) {
       console.error('Render trigger failed', e)
+      toast.error(`Render failed: ${e.message}`)
     }
   }
 
@@ -55,14 +64,18 @@ export default function GeneratePage() {
     setShorts([])
     try {
       const result = await createShortsFromLink(url)
-      setShorts(result || [])
-      toast.success(`${(result || []).length} Shorts queue lo padday! Rendering started...`)
+      if (!result || result.length === 0) throw new Error('No shorts generated')
+      
+      setShorts(result)
+      toast.success(`${result.length} Shorts found! Rendering started...`)
       setUrl('')
       
-      // Ventane render trigger chey
-      result?.forEach(short => triggerRender(short))
+      // Ventane render trigger chey with 1s delay
+      result.forEach((short, i) => {
+        setTimeout(() => triggerRender(short), i * 1000) // 1s gap ivvadam valla rate limit pothundi
+      })
       
-      setTimeout(loadRenderQueue, 2000)
+      setTimeout(loadRenderQueue, 3000)
     } catch (e: any) {
       toast.error(e.message || 'Failed to generate shorts')
       setShorts([])
@@ -92,7 +105,7 @@ export default function GeneratePage() {
     }
   }
 
-  const allShorts = [...shorts, ...renderQueue]
+  const allShorts = [...shorts, ...renderQueue].filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i) // duplicates remove
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
@@ -115,7 +128,7 @@ export default function GeneratePage() {
       </div>
 
       {allShorts.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+        <div className="bg-white rounded-2xl border-gray-200 p-6">
           <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Play className="w-6 h-6 text-red-600" />Your Shorts - {allShorts.length}</h2>
           <div className="space-y-4">
             {allShorts.map((short, i) => (
