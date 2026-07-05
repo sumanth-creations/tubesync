@@ -46,9 +46,12 @@ export default function GeneratePage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case 'draft': return 'text-gray-600 bg-gray-50'
+      case 'pending': return 'text-orange-600 bg-orange-50'
       case 'pending_render': return 'text-orange-600 bg-orange-50'
       case 'rendering': return 'text-blue-600 bg-blue-50'
       case 'ready': return 'text-green-600 bg-green-50'
+      case 'approved': return 'text-purple-600 bg-purple-50'
       case 'failed': return 'text-red-600 bg-red-50'
       default: return 'text-gray-600 bg-gray-50'
     }
@@ -56,9 +59,12 @@ export default function GeneratePage() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
+      case 'draft': return <Clock className="w-4 h-4" />
+      case 'pending': return <Clock className="w-4 h-4" />
       case 'pending_render': return <Clock className="w-4 h-4" />
       case 'rendering': return <Loader2 className="w-4 h-4 animate-spin" />
       case 'ready': return <CheckCircle2 className="w-4 h-4" />
+      case 'approved': return <CheckCircle2 className="w-4 h-4" />
       case 'failed': return <AlertCircle className="w-4 h-4" />
       default: return null
     }
@@ -74,7 +80,7 @@ export default function GeneratePage() {
         <p className="text-gray-600">Paste any YouTube link. AI will find 5 viral 3-sec moments + create 21s shorts with accurate script.</p>
       </div>
       
-      <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
+      <div className="bg-white rounded-2xl border-gray-200 p-6 mb-6">
         <div className="flex gap-2">
           <div className="flex-1 relative">
             <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -99,7 +105,7 @@ export default function GeneratePage() {
       </div>
 
       {shorts.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-2xl border-gray-200 p-6 mb-6">
           <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
             <CheckCircle2 className="w-6 h-6 text-green-600" />
             Just Generated - {shorts.length} Shorts
@@ -129,7 +135,7 @@ export default function GeneratePage() {
       )}
 
       {renderQueue.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+        <div className="bg-white rounded-2xl border-gray-200 p-6">
           <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
             <Clock className="w-6 h-6 text-orange-600" />
             Render Queue - {renderQueue.length} Pending
@@ -149,7 +155,7 @@ export default function GeneratePage() {
                   </div>
                   <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(video.status)}`}>
                     {getStatusIcon(video.status)}
-                    {video.status.replace('_', ' ')}
+                    {video.status.replace('_', ')}
                   </div>
                 </div>
               </div>
