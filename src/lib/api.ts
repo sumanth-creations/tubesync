@@ -46,7 +46,7 @@ export async function signOut() {
 }
 
 export async function getCurrentUser(): Promise<AppUser | null> {
-  const { data: { user } } = await supabase.auth.getUser(); // FIXED
+  const { data: { user } = await supabase.auth.getUser();
   if (!user) return null;
   return {
     id: user.id,
@@ -352,14 +352,14 @@ export async function getUserSettings(): Promise<any> {
 }
 
 export async function saveGeminiApiKey(apiKey: string): Promise<void> {
-  const { data: { user } = await supabase.auth.getUser(); // FIXED
+  const { data: { user } } = await supabase.auth.getUser(); // FIXED
   if (!user) throw new Error('Not signed in');
   const { error } = await supabase.from('user_settings').upsert({ user_id: user.id, gemini_api_key: apiKey, updated_at: new Date().toISOString() });
   if (error) throw error;
 }
 
 export async function saveChannelNiche(niche: string): Promise<void> {
-  const { data: { user } } = await supabase.auth.getUser(); // FIXED
+  const { data: { user } = await supabase.auth.getUser(); // FIXED
   if (!user) throw new Error('Not signed in');
   const { error } = await supabase.from('user_settings').upsert({ user_id: user.id, channel_niche: niche, updated_at: new Date().toISOString() });
   if (error) throw error;
