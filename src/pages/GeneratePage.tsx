@@ -58,7 +58,6 @@ export default function GeneratePage() {
         },
         body: JSON.stringify({ 
           short_id: short.id,
-          // Custom user preferences pampisthunnam backend algorithm push kosam
           preferences: { language, voiceTone, scriptStyle, targetAudience }
         })
       })
@@ -87,7 +86,6 @@ export default function GeneratePage() {
     toast.loading('AI analyzing video & creating viral hooks...', {id: 'gen'})
     
     try {
-      // Step 1 lo user select chesina data ni AI API ki pass chesthunam
       const result = await createShortsFromLink(url, {
         language,
         voiceTone,
@@ -296,24 +294,83 @@ export default function GeneratePage() {
                       {short.hook_context && (
                         <div className="pt-1 border-t border-slate-800/50">
                           <span className="font-semibold text-slate-500 block mb-0.5">Viral Hook Strategy:</span>
-                          <p className="text-amber-400/90 italic">"{short.hook_context}"</p>
+                          <p className="text-amber-400/90 italic">"{short.hook_context.split(' | AUDIO_URL:')[0]}"</p>
                         </div>
                       )}
                     </div>
                   </div>
 
+                  {/* ELEVENLABS PREVIEW & EDITOR SECTION FOR READY SHORTS */}
                   {short.status === 'ready' && short.video_url ? (
-                    <div className="space-y-3 pt-2">
-                      <div className="rounded-xl overflow-hidden border border-slate-800 bg-black">
-                        <video src={short.video_url} controls className="w-full max-h-80 mx-auto object-contain" />
+                    <div className="mt-4 space-y-4 border-t border-slate-800 pt-4">
+                      
+                      {/* 1. AI SCRIPT PREVIEW & EDITOR BOX */}
+                      <div className="bg-slate-950/80 rounded-xl p-4 border border-slate-800 space-y-2">
+                        <div className="flex justify-between items-center">
+                          <label className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                            📝 AI Dubbing Script (Editable)
+                          </label>
+                          <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">
+                            {language.toUpperCase()}
+                          </span>
+                        </div>
+                        <textarea 
+                          defaultValue={short.script || "Generating script..."} 
+                          rows={3}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-red-500 font-sans leading-relaxed"
+                          placeholder="Edit your voiceover script here..."
+                        />
                       </div>
-                      <a 
-                        href={short.video_url} 
-                        download={`${short.title}.mp4`} 
-                        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20"
-                      >
-                        <Download className="w-4 h-4" /> Export High-Res Short
-                      </a>
+
+                      {/* 2. ELEVENLABS AUDIO PREVIEW PLAYER */}
+                      {short.hook_context?.includes('AUDIO_URL:https') ? (
+                        <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-xl p-3 space-y-2">
+                          <div className="flex items-center justify-between text-xs font-semibold text-emerald-400">
+                            <span>🎙️ ElevenLabs AI Voiceover Generated!</span>
+                            <span className="text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded">v3 Multilingual</span>
+                          </div>
+                          <audio 
+                            controls 
+                            src={short.hook_context.split('AUDIO_URL:')[1]} 
+                            className="w-full h-8"
+                          />
+                        </div>
+                      ) : (
+                        <div className="text-xs text-slate-500 italic">
+                          ⚠️ ElevenLabs audio pending or free quota reached. Using original clip audio.
+                        </div>
+                      )}
+
+                      {/* 3. CAPTIONS & VIDEO PREVIEW */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="rounded-xl overflow-hidden border border-slate-800 bg-black">
+                          <video src={short.video_url} controls className="w-full max-h-60 mx-auto object-contain" />
+                        </div>
+                        <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 space-y-1.5 overflow-y-auto max-h-60">
+                          <span className="text-xs font-bold text-slate-400 block mb-2">🏷️ Auto-Generated Captions:</span>
+                          {short.captions && Array.isArray(short.captions) ? (
+                            short.captions.map((cap, idx) => (
+                              <span key={idx} className="inline-block bg-slate-800/80 text-amber-300 font-extrabold text-xs px-2 py-1 rounded mr-1.5 mb-1.5 border border-slate-700">
+                                {cap}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-slate-500">Captions synced with voiceover.</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 4. EXPORT ACTION */}
+                      <div className="pt-2">
+                        <a 
+                          href={short.video_url} 
+                          download={`${short.title}.mp4`} 
+                          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20"
+                        >
+                          <Download className="w-4 h-4" /> Export High-Res Short
+                        </a>
+                      </div>
+
                     </div>
                   ) : short.status === 'generating' ? (
                     <div className="bg-blue-950/20 border border-blue-500/20 rounded-xl p-4 text-center">
