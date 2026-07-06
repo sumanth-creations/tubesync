@@ -315,7 +315,7 @@ export default function GeneratePage() {
                           </span>
                         </div>
                         <textarea 
-                          defaultValue={short.script || "Generating script..."} 
+                          defaultValue={(short as any).script || "Generating script..."} 
                           rows={3}
                           className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-red-500 font-sans leading-relaxed"
                           placeholder="Edit your voiceover script here..."
