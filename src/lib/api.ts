@@ -327,12 +327,34 @@ export const getChannelStats = async () => {
   return { totalViews: 0, avgViews: 0, subscribers: 0, channelCount: channelCount || 0, videoCount: videos?.length || 0, worstVideo: null, bestVideo: null };
 };
 
-export async function createShortsFromLink(youtube_url: string): Promise<Short[]> {
+// ==========================================
+// STEP 2 UPGRADE: ALGORITHM WAR MODE PREFERENCES
+// ==========================================
+export interface GenerationPreferences {
+  language?: string;
+  voiceTone?: string;
+  scriptStyle?: string;
+  targetAudience?: string;
+}
+
+export async function createShortsFromLink(
+  youtube_url: string, 
+  preferences?: GenerationPreferences
+): Promise<Short[]> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Not signed in');
   
+  // existing yt-analyzer call ki mana preferences pampisthunnam
   const { data, error } = await supabase.functions.invoke('yt-analyzer', { 
-    body: { youtube_url },
+    body: { 
+      youtube_url,
+      preferences: preferences || {
+        language: 'telugu',
+        voiceTone: 'energetic',
+        scriptStyle: 'hook_controversial',
+        targetAudience: 'gen_z'
+      }
+    },
     headers: { 'Authorization': `Bearer ${session.access_token}` }
   });
   if (error) throw new Error(error.message);

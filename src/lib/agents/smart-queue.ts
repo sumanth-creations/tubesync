@@ -1,5 +1,5 @@
 /**
- * Smart Upload Queue - Intelligent Priority Scheduling
+ * Smart Upload Queue - Intelligent Priority Scheduling & Algorithm Monetization Engine
  *
  * Features:
  * - Priority-based scheduling
@@ -8,6 +8,7 @@
  * - Retry logic with backoff
  * - Batch processing support
  * - Progress tracking
+ * - 1-Month YouTube Algorithm Monetization Hack (Viral Batch Spacings)
  */
 
 import {
@@ -16,7 +17,8 @@ import {
 import {
   getUploadQueue, queueForUpload, retryUpload, getVideos,
 } from '../api';
-import type { ScheduledPublish, Video, UploadQueue } from '../../types';
+import { supabase } from '../supabase';
+import type { ScheduledPublish, Video, UploadQueue, Short } from '../../types';
 import { channelIntelligence } from './channel-history';
 import { IntelligenceCore, getAIClient } from './intelligence-core';
 
@@ -54,6 +56,12 @@ interface BatchSchedule {
   estimatedViews: number;
   spacing: number;
   startFrom: Date;
+}
+
+export interface QueueOptions {
+  targetAudience?: string;
+  maxDailyUploads?: number;
+  channelId?: string;
 }
 
 export class SmartQueue {
@@ -410,3 +418,126 @@ export class SmartQueue {
 }
 
 export const smartQueue = new SmartQueue();
+
+// ==========================================
+// 1-MONTH ALGORITHM MONETIZATION EXTENSIONS
+// ==========================================
+
+/**
+ * Calculates high-retention upload windows based on target niche
+ */
+export function calculatePeakSlots(count: number, targetAudience: string = 'gen_z'): Date[] {
+  const slots: Date[] = [];
+  const now = new Date();
+  
+  const audiencePeakHours: Record<string, number[]> = {
+    gen_z: [13, 18, 21],      // 1 PM, 6 PM, 9 PM
+    techies: [9, 14, 19],     // 9 AM, 2 PM, 7 PM
+    mass: [11, 17, 20],       // 11 AM, 5 PM, 8 PM
+    finance: [8, 12, 18]      // 8 AM, 12 PM, 6 PM
+  };
+
+  const activeHours = audiencePeakHours[targetAudience] || audiencePeakHours.gen_z;
+  let currentDayOffset = 0;
+  let hourIndex = 0;
+
+  while (slots.length < count) {
+    const slotDate = new Date();
+    slotDate.setDate(now.getDate() + currentDayOffset);
+    
+    const targetHour = activeHours[hourIndex];
+    slotDate.setHours(targetHour, 0, 0, 0);
+
+    if (slotDate > now) {
+      slots.push(new Date(slotDate));
+    }
+
+    hourIndex++;
+    if (hourIndex >= activeHours.length) {
+      hourIndex = 0;
+      currentDayOffset++;
+    }
+  }
+
+  return slots;
+}
+
+/**
+ * Spaces out viral shorts across peak slots to hack the YouTube Recommendation Algorithm
+ */
+export async function scheduleViralBatch(
+  shorts: Short[], 
+  channelId: string, 
+  options: QueueOptions = {}
+): Promise<{ success: boolean; scheduledCount: number; slots: string[] }> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const audience = options.targetAudience || 'gen_z';
+    const peakSlots = calculatePeakSlots(shorts.length, audience);
+    
+    const scheduledRecords = [];
+    const slotStrings = [];
+
+    for (let i = 0; i < shorts.length; i++) {
+      const short = shorts[i];
+      const scheduledTime = peakSlots[i];
+      slotStrings.push(scheduledTime.toLocaleString());
+
+      scheduledRecords.push({
+        user_id: user.id,
+        video_id: short.id,
+        youtube_channel_id: channelId,
+        scheduled_for: scheduledTime.toISOString(),
+        status: 'pending'
+      });
+
+      await supabase
+        .from('shorts')
+        .update({ status: 'scheduled' })
+        .eq('id', short.id);
+    }
+
+    const { error: insertErr } = await supabase
+      .from('scheduled_publishes')
+      .insert(scheduledRecords);
+
+    if (insertErr) throw insertErr;
+
+    console.log(`🚀 Successfully queued ${shorts.length} shorts for Algorithm push!`);
+
+    return {
+      success: true,
+      scheduledCount: shorts.length,
+      slots: slotStrings
+    };
+
+  } catch (error: any) {
+    console.error('Viral Batch Queue Error:', error);
+    throw new Error(`Queue scheduling failed: ${error.message}`);
+  }
+}
+
+/**
+ * Quick monitoring hook for background workers
+ */
+export async function getQueueMetrics() {
+  try {
+    const { data, error } = await supabase
+      .from('scheduled_publishes')
+      .select('*')
+      .eq('status', 'pending')
+      .order('scheduled_for', { ascending: true });
+
+    if (error) throw error;
+
+    return {
+      totalPending: data?.length || 0,
+      nextUpload: data?.[0]?.scheduled_for || null
+    };
+  } catch (e) {
+    console.error('Failed to fetch queue metrics', e);
+    return { totalPending: 0, nextUpload: null };
+  }
+}
