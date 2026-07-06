@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createShortsFromLink, getRenderQueue } from '../lib/api'
 import { Short } from '../types'
 import toast from 'react-hot-toast'
@@ -10,10 +10,11 @@ export default function GeneratePage() {
   const [loading, setLoading] = useState(false)
   const [shorts, setShorts] = useState<Short[]>([])
   const [renderQueue, setRenderQueue] = useState<Short[]>([])
+  const renderedIds = useRef(new Set<string>()) // duplicate render aapakodaniki
 
   useEffect(() => { 
     loadRenderQueue()
-    const interval = setInterval(loadRenderQueue, 5000) // 5s ki 1 sari refresh chey
+    const interval = setInterval(loadRenderQueue, 5000)
     return () => clearInterval(interval)
   }, [])
 
@@ -21,6 +22,14 @@ export default function GeneratePage() {
     try { 
       const queue = await getRenderQueue()
       setRenderQueue(queue || []) 
+      
+      // AUTO RENDER: pending unna vatini trigger chey
+      queue?.forEach((short) => {
+        if(short.status === 'pending' && !renderedIds.current.has(short.id)) {
+          renderedIds.current.add(short.id)
+          triggerRender(short)
+        }
+      })
     } catch (e) { 
       console.error('Failed to load render queue', e) 
     }
@@ -37,19 +46,14 @@ export default function GeneratePage() {
           'Authorization': `Bearer ${session.access_token}`, 
           'Content-Type': 'application/json' 
         },
-        body: JSON.stringify({
-          short_id: short.id,
-          // youtube_url, start_time ikkada avasaram ledu. DB lo untundi
-        })
+        body: JSON.stringify({ short_id: short.id })
       })
 
       if (!res.ok) {
         const err = await res.json()
         throw new Error(err.error || 'Render failed')
       }
-
-      const data = await res.json()
-      console.log('Render triggered:', data)
+      console.log('Render triggered:', short.id)
       
     } catch (e: any) {
       console.error('Render trigger failed', e)
@@ -60,24 +64,33 @@ export default function GeneratePage() {
   const handleGenerate = async () => {
     if (!url.trim()) return toast.error('YouTube link paste chey ra')
     if (!url.includes('youtube.com') && !url.includes('youtu.be')) return toast.error('Valid YouTube link ivvu')
+    
     setLoading(true)
     setShorts([])
+    toast.loading('AI analyzing video...', {id: 'gen'})
+    
     try {
       const result = await createShortsFromLink(url)
-      if (!result || result.length === 0) throw new Error('No shorts generated')
-      
+      console.log("API Result:", result) // DEBUG
+
+      if (!result || result.length === 0) throw new Error('No shorts generated. Gemini quota or API error.')
+
+      toast.success(`${result.length} Shorts found! Rendering started...`, {id: 'gen'})
       setShorts(result)
-      toast.success(`${result.length} Shorts found! Rendering started...`)
       setUrl('')
       
-      // Ventane render trigger chey with 1s delay
+      // Trigger render for new shorts
       result.forEach((short, i) => {
-        setTimeout(() => triggerRender(short), i * 1000) // 1s gap ivvadam valla rate limit pothundi
+        if(!renderedIds.current.has(short.id)) {
+          renderedIds.current.add(short.id)
+          setTimeout(() => triggerRender(short), i * 1500)
+        }
       })
       
-      setTimeout(loadRenderQueue, 3000)
+      setTimeout(loadRenderQueue, 4000)
     } catch (e: any) {
-      toast.error(e.message || 'Failed to generate shorts')
+      console.error("Generate Error:", e)
+      toast.error(e.message || 'Failed to generate shorts', {id: 'gen'})
       setShorts([])
     }
     setLoading(false)
@@ -105,7 +118,7 @@ export default function GeneratePage() {
     }
   }
 
-  const allShorts = [...shorts, ...renderQueue].filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i) // duplicates remove
+  const allShorts = [...shorts, ...renderQueue].filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i)
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
@@ -114,7 +127,7 @@ export default function GeneratePage() {
         <p className="text-gray-600">Paste any YouTube link. AI will find 5 viral moments + auto render with AI voiceover.</p>
       </div>
       
-      <div className="bg-white rounded-2xl border-gray-200 p-6 mb-6">
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
         <div className="flex gap-2">
           <div className="flex-1 relative">
             <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -128,7 +141,7 @@ export default function GeneratePage() {
       </div>
 
       {allShorts.length > 0 && (
-        <div className="bg-white rounded-2xl border-gray-200 p-6">
+        <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Play className="w-6 h-6 text-red-600" />Your Shorts - {allShorts.length}</h2>
           <div className="space-y-4">
             {allShorts.map((short, i) => (
@@ -145,26 +158,20 @@ export default function GeneratePage() {
                   </div>
                 </div>
 
-                {/* VIDEO PREVIEW */}
                 {short.status === 'ready' && short.video_url ? (
                   <div className="mt-3">
-                    <video 
-                      src={short.video_url} 
-                      controls 
-                      className="w-full rounded-lg border bg-black"
-                      style={{maxHeight: '400px'}}
-                    />
-                    <a 
-                      href={short.video_url} 
-                      download={`${short.title}.mp4`}
-                      className="mt-3 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2"
-                    >
+                    <video src={short.video_url} controls className="w-full rounded-lg border bg-black" style={{maxHeight: '400px'}} />
+                    <a href={short.video_url} download={`${short.title}.mp4`} className="mt-3 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2">
                       <Download className="w-4 h-4" /> Download Short
                     </a>
                   </div>
                 ) : short.status === 'generating' ? (
                   <div className="mt-3 p-3 bg-blue-50 rounded-lg text-sm text-blue-700 flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" /> Rendering with AI voiceover... ~30s
+                  </div>
+                ) : short.status === 'failed' ? (
+                  <div className="mt-3 p-3 bg-red-50 rounded-lg text-sm text-red-700">
+                    ❌ Render failed. Try again.
                   </div>
                 ) : (
                   <div className="mt-3 p-3 bg-orange-50 rounded-lg text-sm text-orange-700">
