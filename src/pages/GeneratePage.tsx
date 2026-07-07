@@ -15,7 +15,6 @@ export default function GeneratePage() {
   const [renderQueue, setRenderQueue] = useState<Short[]>([])
   const renderedIds = useRef(new Set<string>())
 
-  // Step 1 Customization States (Human Content Creator Level Engine)
   const [language, setLanguage] = useState('telugu')
   const [voiceTone, setVoiceTone] = useState('energetic')
   const [scriptStyle, setScriptStyle] = useState('hook_controversial')
@@ -31,46 +30,29 @@ export default function GeneratePage() {
     try { 
       const queue = await getRenderQueue()
       setRenderQueue(queue || []) 
-      
       queue?.forEach((short) => {
         if(short.status === 'pending' && !renderedIds.current.has(short.id)) {
           renderedIds.current.add(short.id)
           triggerRender(short)
         }
       })
-    } catch (e) { 
-      console.error('Failed to load render queue', e) 
-    }
+    } catch (e) { console.error(e) }
   }
 
   const triggerRender = async (short: Short) => {
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) throw new Error('Not logged in')
-
+      if (!session) return
       await supabase.from('shorts').update({ status: 'generating' }).eq('id', short.id)
-
+      
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/render-shorts`, {
         method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${session.access_token}`, 
-          'Content-Type': 'application/json' 
-        },
-        body: JSON.stringify({ 
-          short_id: short.id,
-          preferences: { language, voiceTone, scriptStyle, targetAudience }
-        })
+        headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ short_id: short.id, preferences: { language, voiceTone, scriptStyle, targetAudience } })
       })
-
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error || 'Render failed')
-      }
-      console.log('Render triggered:', short.id)
+      if (!res.ok) throw new Error('Render failed')
       loadRenderQueue() 
-      
     } catch (e: any) {
-      console.error('Render trigger failed', e)
       toast.error(`Render failed: ${e.message}`)
       renderedIds.current.delete(short.id)
       await supabase.from('shorts').update({ status: 'pending' }).eq('id', short.id)
@@ -78,322 +60,77 @@ export default function GeneratePage() {
   }
 
   const handleGenerate = async () => {
-    if (!url.trim()) return toast.error('YouTube link paste chey ra boss')
-    if (!url.includes('youtube.com') && !url.includes('youtu.be')) return toast.error('Valid YouTube link ivvu')
-    
+    if (!url.trim()) return toast.error('Enter a YouTube link')
     setLoading(true)
-    setShorts([])
-    toast.loading('AI analyzing video & creating viral hooks...', {id: 'gen'})
-    
+    toast.loading('Analyzing video...', {id: 'gen'})
     try {
-      const result = await createShortsFromLink(url, {
-        language,
-        voiceTone,
-        scriptStyle,
-        targetAudience
-      })
-      console.log("API Result:", result)
-
-      if (!result || result.length === 0) throw new Error('No shorts generated. Gemini quota or API error.')
-
-      toast.success(`${result.length} Viral Shorts locked! Rendering started...`, {id: 'gen'})
+      const result = await createShortsFromLink(url, { language, voiceTone, scriptStyle, targetAudience })
+      if (!result) throw new Error('No shorts generated')
+      toast.success('Rendering started!', {id: 'gen'})
       setShorts(result)
       setUrl('')
-      
       result.forEach((short, i) => {
         if(!renderedIds.current.has(short.id)) {
           renderedIds.current.add(short.id)
           setTimeout(() => triggerRender(short), i * 1500)
         }
       })
-      
     } catch (e: any) {
-      console.error("Generate Error:", e)
-      toast.error(e.message || 'Failed to generate shorts', {id: 'gen'})
-      setShorts([])
+      toast.error(e.message, {id: 'gen'})
     }
     setLoading(false)
   }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'pending':
-        return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20"><Clock className="w-3.5 h-3.5 animate-pulse" /> In Queue</span>
-      case 'generating':
-        return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20"><Loader2 className="w-3.5 h-3.5 animate-spin" /> AI Dubbing & Rendering</span>
-      case 'ready':
-      case 'uploaded':
-        return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><CheckCircle2 className="w-3.5 h-3.5" /> Viral Ready</span>
-      case 'failed':
-        return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20"><AlertCircle className="w-3.5 h-3.5" /> Failed</span>
-      default:
-        return null
+      case 'pending': return <span className="text-amber-400 text-xs font-bold">In Queue</span>
+      case 'generating': return <span className="text-blue-400 text-xs font-bold animate-pulse">Rendering...</span>
+      case 'ready': return <span className="text-emerald-400 text-xs font-bold">Ready</span>
+      default: return <span className="text-rose-400 text-xs font-bold">Failed</span>
     }
   }
 
   const allShorts = [...shorts, ...renderQueue].filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i)
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-10 font-sans selection:bg-red-500 selection:text-white">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-10 font-sans">
       <div className="max-w-6xl mx-auto space-y-8">
+        <h1 className="text-4xl font-extrabold">Viral Shorts Generator <Sparkles className="inline text-amber-400" /></h1>
         
-        {/* Header Section */}
-        <div className="border-b border-slate-800/80 pb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold uppercase tracking-wider mb-3">
-              <Flame className="w-3.5 h-3.5" /> Algorithm War Engine v2.0
-            </div>
-            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight flex items-center gap-3">
-              Viral Shorts Generator <Sparkles className="w-7 h-7 text-amber-400" />
-            </h1>
-            <p className="text-slate-400 mt-1 text-sm md:text-base">
-              Convert long videos into multi-language, high-retention clips engineered to monetize in 30 days.
-            </p>
-          </div>
+        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6">
+           <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://youtube.com/watch?v=..." className="w-full bg-slate-950 p-4 rounded-xl mb-4 border border-slate-700" />
+           <button onClick={handleGenerate} disabled={loading} className="bg-red-600 px-8 py-3 rounded-xl font-bold">Launch War Mode</button>
         </div>
 
-        {/* STEP 1: CONTENT CREATOR CUSTOMIZATION WAR ROOM */}
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-2xl backdrop-blur-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-red-600/5 rounded-full blur-3xl -z-10 pointer-events-none" />
-          
-          <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2 mb-6">
-            <Sliders className="w-5 h-5 text-red-500" /> Step 1: Configure AI Content Creator Engine
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            {/* Language Selector */}
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-400 flex items-center gap-1.5 uppercase tracking-wider">
-                <Languages className="w-4 h-4 text-blue-400" /> Dubbing Language
-              </label>
-              <select 
-                value={language} 
-                onChange={e => setLanguage(e.target.value)}
-                disabled={loading}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-red-500 transition-colors cursor-pointer"
-              >
-                <option value="telugu">🔥 Telugu (Viral Slang + Bold)</option>
-                <option value="english">⚡ English (US Creator Style)</option>
-                <option value="hindi">✨ Hindi (Mass Appeal)</option>
-                <option value="original">🎧 Original Video Audio</option>
-              </select>
-            </div>
-
-            {/* Voice Tone */}
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-400 flex items-center gap-1.5 uppercase tracking-wider">
-                <Mic className="w-4 h-4 text-emerald-400" /> AI Voiceover Tone
-              </label>
-              <select 
-                value={voiceTone} 
-                onChange={e => setVoiceTone(e.target.value)}
-                disabled={loading}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-red-500 transition-colors cursor-pointer"
-              >
-                <option value="energetic">🚀 Hyper-Energetic (MrBeast Style)</option>
-                <option value="dramatic">🎭 Deep & Dramatic (Suspense)</option>
-                <option value="friendly">🤝 Casual & Friendly (UGC)</option>
-                <option value="informative">🧠 Professional Tech Expert</option>
-              </select>
-            </div>
-
-            {/* Script Strategy */}
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-400 flex items-center gap-1.5 uppercase tracking-wider">
-                <Zap className="w-4 h-4 text-amber-400" /> Script Hook Angle
-              </label>
-              <select 
-                value={scriptStyle} 
-                onChange={e => setScriptStyle(e.target.value)}
-                disabled={loading}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-red-500 transition-colors cursor-pointer"
-              >
-                <option value="hook_controversial">🧨 Controversial / Shocking Hook</option>
-                <option value="storytelling">📖 Loop Storytelling (100% Retention)</option>
-                <option value="listicle">🔢 Top 3 Secret Facts</option>
-                <option value="problem_solution">💡 Problem → Direct Solution</option>
-              </select>
-            </div>
-
-            {/* Target Audience */}
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-400 flex items-center gap-1.5 uppercase tracking-wider">
-                <UserCheck className="w-4 h-4 text-purple-400" /> Target Algorithm Niche
-              </label>
-              <select 
-                value={targetAudience} 
-                onChange={e => setTargetAudience(e.target.value)}
-                disabled={loading}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-red-500 transition-colors cursor-pointer"
-              >
-                <option value="gen_z">🎯 Gen-Z & College Students</option>
-                <option value="techies">💻 Software & AI Enthusiasts</option>
-                <option value="mass">🌐 General Mass Audience</option>
-                <option value="finance">💰 Money, Career & Hustlers</option>
-              </select>
-            </div>
-          </div>
-
-          {/* STEP 2: LINK INPUT & LAUNCH */}
-          <div className="pt-6 border-t border-slate-800/80">
-            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">
-              Step 2: Paste Source Video URL
-            </label>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1 relative">
-                <Youtube className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                <input 
-                  value={url} 
-                  onChange={e => setUrl(e.target.value)} 
-                  placeholder="https://youtube.com/watch?v=..." 
-                  className="w-full pl-12 pr-4 py-3.5 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-red-500 text-slate-100 placeholder:text-slate-600 transition-colors" 
-                  disabled={loading} 
-                  onKeyDown={e => e.key === 'Enter' && handleGenerate()} 
-                />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {allShorts.map((short: any) => (
+            <div key={short.id} className="bg-slate-900/40 p-5 rounded-2xl border border-slate-800">
+              <div className="flex justify-between mb-4">
+                <h3 className="font-bold">{short.title}</h3>
+                {getStatusBadge(short.status)}
               </div>
-              <button 
-                onClick={handleGenerate} 
-                disabled={loading || !url.trim()} 
-                className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold px-8 py-3.5 rounded-xl disabled:opacity-50 transition-all shadow-lg shadow-red-600/20 flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap active:scale-95"
-              >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-                {loading ? 'Analyzing AI Hooks...' : 'Launch War Mode (5 Shorts)'}
-              </button>
-            </div>
-          </div>
-        </div>
 
-        {/* RESULTS SECTION */}
-        {allShorts.length > 0 && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <Play className="w-6 h-6 text-red-500 fill-red-500/20" /> Generated Algorithm Hooks ({allShorts.length})
-              </h2>
-            </div>
+              {/* VIDEO PLAYER */}
+              <div className="rounded-xl overflow-hidden bg-black mb-4">
+                {short.video_url?.includes('http') ? (
+                   <video src={short.video_url} controls className="w-full h-60" />
+                ) : (
+                   <div className="h-60 flex items-center justify-center text-slate-600">Processing...</div>
+                )}
+              </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {allShorts.map((short, i) => (
-                <div key={short.id} className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5 hover:border-slate-700 transition-colors flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-start justify-between gap-3 mb-4">
-                      <div className="flex-1">
-                        <span className="text-xs font-bold text-red-400 bg-red-500/10 px-2 py-0.5 rounded mb-2 inline-block">
-                          Clip #{i + 1}
-                        </span>
-                        <h3 className="font-bold text-lg text-slate-100 leading-snug">{short.title}</h3>
-                      </div>
-                      <div>{getStatusBadge(short.status)}</div>
-                    </div>
-
-                    <div className="bg-slate-950/60 rounded-xl p-3.5 border border-slate-800/50 space-y-1.5 text-xs text-slate-400 mb-4">
-                      <div className="flex justify-between">
-                        <span className="font-semibold text-slate-500">Duration Cut:</span>
-                        <span className="text-slate-300 font-mono">{short.start_time}s → {short.end_time}s</span>
-                      </div>
-                      {short.hook_context && (
-                        <div className="pt-1 border-t border-slate-800/50">
-                          <span className="font-semibold text-slate-500 block mb-0.5">Viral Hook Strategy:</span>
-                          <p className="text-amber-400/90 italic">"{short.hook_context.split(' | AUDIO_URL:')[0]}"</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* ELEVENLABS PREVIEW & EDITOR SECTION FOR READY SHORTS */}
-                  {short.status === 'ready' && short.video_url ? (
-                    <div className="mt-4 space-y-4 border-t border-slate-800 pt-4">
-                      
-                      {/* 1. AI SCRIPT PREVIEW & EDITOR BOX */}
-                      <div className="bg-slate-950/80 rounded-xl p-4 border border-slate-800 space-y-2">
-                        <div className="flex justify-between items-center">
-                          <label className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                            📝 AI Dubbing Script (Editable)
-                          </label>
-                          <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">
-                            {language.toUpperCase()}
-                          </span>
-                        </div>
-                        <textarea 
-                          defaultValue={(short as any).script || "Generating script..."} 
-                          rows={3}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-red-500 font-sans leading-relaxed"
-                          placeholder="Edit your voiceover script here..."
-                        />
-                      </div>
-
-                      {/* 2. ELEVENLABS AUDIO PREVIEW PLAYER */}
-                      {short.hook_context?.includes('AUDIO_URL:https') ? (
-                        <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-xl p-3 space-y-2">
-                          <div className="flex items-center justify-between text-xs font-semibold text-emerald-400">
-                            <span>🎙️ ElevenLabs AI Voiceover Generated!</span>
-                            <span className="text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded">v3 Multilingual</span>
-                          </div>
-                          <audio 
-                            controls 
-                            src={short.hook_context.split('AUDIO_URL:')[1]} 
-                            className="w-full h-8"
-                          />
-                        </div>
-                      ) : (
-                        <div className="text-xs text-slate-500 italic">
-                          ⚠️ ElevenLabs audio pending or free quota reached. Using original clip audio.
-                        </div>
-                      )}
-
-                      {/* 3. CAPTIONS & VIDEO PREVIEW */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="rounded-xl overflow-hidden border border-slate-800 bg-black">
-                          <video src={short.video_url} controls className="w-full max-h-60 mx-auto object-contain" />
-                        </div>
-                        <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 space-y-1.5 overflow-y-auto max-h-60">
-                          <span className="text-xs font-bold text-slate-400 block mb-2">🏷️ Auto-Generated Captions:</span>
-                          {short.captions && Array.isArray(short.captions) ? (
-                            short.captions.map((cap, idx) => (
-                              <span key={idx} className="inline-block bg-slate-800/80 text-amber-300 font-extrabold text-xs px-2 py-1 rounded mr-1.5 mb-1.5 border border-slate-700">
-                                {cap}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-xs text-slate-500">Captions synced with voiceover.</span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* 4. EXPORT ACTION */}
-                      <div className="pt-2">
-                        <a 
-                          href={short.video_url} 
-                          download={`${short.title}.mp4`} 
-                          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20"
-                        >
-                          <Download className="w-4 h-4" /> Export High-Res Short
-                        </a>
-                      </div>
-
-                    </div>
-                  ) : short.status === 'generating' ? (
-                    <div className="bg-blue-950/20 border border-blue-500/20 rounded-xl p-4 text-center">
-                      <div className="flex items-center justify-center gap-2 text-blue-400 font-medium text-sm">
-                        <Loader2 className="w-4 h-4 animate-spin" /> AI Dubbing in {language.toUpperCase()} & Subtitling...
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1">Applying {voiceTone} creator voiceover (~30 secs)</p>
-                    </div>
-                  ) : short.status === 'failed' ? (
-                    <div className="bg-rose-950/20 border border-rose-500/20 rounded-xl p-3 text-center text-xs text-rose-400 font-medium">
-                      ❌ Processing error. Retrying auto-queue...
-                    </div>
-                  ) : (
-                    <div className="bg-amber-950/20 border border-amber-500/20 rounded-xl p-3 text-center text-xs text-amber-400 font-medium flex items-center justify-center gap-2">
-                      <Clock className="w-4 h-4 animate-pulse" /> Waiting in GPU render pipeline...
-                    </div>
-                  )}
+              {/* AUDIO PLAYER */}
+              {short.hook_context?.includes('AUDIO_URL:') && (
+                <div className="mb-4">
+                  <p className="text-[10px] text-emerald-400 uppercase font-bold mb-1">🎙️ AI Voiceover</p>
+                  <audio controls src={short.hook_context.split('AUDIO_URL:')[1]} className="w-full h-8" />
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+              )}
 
+              <textarea defaultValue={short.script || "Generating..."} className="w-full bg-slate-950 p-3 rounded-lg text-xs" rows={3} />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
