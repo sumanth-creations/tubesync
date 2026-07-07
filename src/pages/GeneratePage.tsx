@@ -15,6 +15,7 @@ export default function GeneratePage() {
   const [renderQueue, setRenderQueue] = useState<Short[]>([])
   const renderedIds = useRef(new Set<string>())
 
+  // Customization States
   const [language, setLanguage] = useState('telugu')
   const [voiceTone, setVoiceTone] = useState('energetic')
   const [scriptStyle, setScriptStyle] = useState('hook_controversial')
@@ -36,7 +37,7 @@ export default function GeneratePage() {
           triggerRender(short)
         }
       })
-    } catch (e) { console.error(e) }
+    } catch (e) { console.error('Failed to load queue', e) }
   }
 
   const triggerRender = async (short: Short) => {
@@ -60,7 +61,7 @@ export default function GeneratePage() {
   }
 
   const handleGenerate = async () => {
-    if (!url.trim()) return toast.error('Enter a YouTube link')
+    if (!url.trim()) return toast.error('Paste a valid YouTube link')
     setLoading(true)
     toast.loading('Analyzing video...', {id: 'gen'})
     try {
@@ -83,10 +84,10 @@ export default function GeneratePage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'pending': return <span className="text-amber-400 text-xs font-bold">In Queue</span>
-      case 'generating': return <span className="text-blue-400 text-xs font-bold animate-pulse">Rendering...</span>
-      case 'ready': return <span className="text-emerald-400 text-xs font-bold">Ready</span>
-      default: return <span className="text-rose-400 text-xs font-bold">Failed</span>
+      case 'pending': return <span className="text-amber-400 text-xs font-bold flex items-center gap-1"><Clock className="w-3 h-3 animate-pulse" /> In Queue</span>
+      case 'generating': return <span className="text-blue-400 text-xs font-bold flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Rendering...</span>
+      case 'ready': return <span className="text-emerald-400 text-xs font-bold flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Ready</span>
+      default: return <span className="text-rose-400 text-xs font-bold"><AlertCircle className="w-3 h-3" /> Failed</span>
     }
   }
 
@@ -95,39 +96,45 @@ export default function GeneratePage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-10 font-sans">
       <div className="max-w-6xl mx-auto space-y-8">
-        <h1 className="text-4xl font-extrabold">Viral Shorts Generator <Sparkles className="inline text-amber-400" /></h1>
+        <h1 className="text-4xl font-extrabold flex items-center gap-3">Viral Shorts Generator <Sparkles className="text-amber-400" /></h1>
         
+        {/* CONFIGURATION PANEL */}
         <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6">
-           <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://youtube.com/watch?v=..." className="w-full bg-slate-950 p-4 rounded-xl mb-4 border border-slate-700" />
-           <button onClick={handleGenerate} disabled={loading} className="bg-red-600 px-8 py-3 rounded-xl font-bold">Launch War Mode</button>
+           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <select value={language} onChange={e => setLanguage(e.target.value)} className="bg-slate-950 p-3 rounded-xl border border-slate-700 text-sm"><option value="telugu">Telugu</option><option value="english">English</option><option value="hindi">Hindi</option></select>
+              <select value={voiceTone} onChange={e => setVoiceTone(e.target.value)} className="bg-slate-950 p-3 rounded-xl border border-slate-700 text-sm"><option value="energetic">Energetic</option><option value="dramatic">Dramatic</option></select>
+              <select value={scriptStyle} onChange={e => setScriptStyle(e.target.value)} className="bg-slate-950 p-3 rounded-xl border border-slate-700 text-sm"><option value="hook_controversial">Controversial Hook</option><option value="storytelling">Storytelling</option></select>
+              <select value={targetAudience} onChange={e => setTargetAudience(e.target.value)} className="bg-slate-950 p-3 rounded-xl border border-slate-700 text-sm"><option value="gen_z">Gen-Z</option><option value="techies">Techies</option></select>
+           </div>
+           <input value={url} onChange={e => setUrl(e.target.value)} placeholder="Paste YouTube link here..." className="w-full bg-slate-950 p-4 rounded-xl mb-4 border border-slate-700" />
+           <button onClick={handleGenerate} disabled={loading} className="w-full bg-red-600 py-4 rounded-xl font-bold hover:bg-red-500 transition-all">Launch War Mode</button>
         </div>
 
+        {/* SHORTS GRID */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {allShorts.map((short: any) => (
             <div key={short.id} className="bg-slate-900/40 p-5 rounded-2xl border border-slate-800">
               <div className="flex justify-between mb-4">
-                <h3 className="font-bold">{short.title}</h3>
+                <h3 className="font-bold truncate">{short.title}</h3>
                 {getStatusBadge(short.status)}
               </div>
 
-              {/* VIDEO PLAYER */}
               <div className="rounded-xl overflow-hidden bg-black mb-4">
                 {short.video_url?.includes('http') ? (
                    <video src={short.video_url} controls className="w-full h-60" />
                 ) : (
-                   <div className="h-60 flex items-center justify-center text-slate-600">Processing...</div>
+                   <div className="h-60 flex items-center justify-center text-slate-600">Video will appear here when ready...</div>
                 )}
               </div>
 
-              {/* AUDIO PLAYER */}
               {short.hook_context?.includes('AUDIO_URL:') && (
-                <div className="mb-4">
-                  <p className="text-[10px] text-emerald-400 uppercase font-bold mb-1">🎙️ AI Voiceover</p>
+                <div className="mb-4 bg-slate-950 p-3 rounded-xl border border-emerald-900">
+                  <p className="text-[10px] text-emerald-400 uppercase font-bold mb-1">🎙️ AI Dubbed Audio</p>
                   <audio controls src={short.hook_context.split('AUDIO_URL:')[1]} className="w-full h-8" />
                 </div>
               )}
 
-              <textarea defaultValue={short.script || "Generating..."} className="w-full bg-slate-950 p-3 rounded-lg text-xs" rows={3} />
+              <textarea defaultValue={short.script || "Generating script..."} className="w-full bg-slate-950 p-3 rounded-lg text-xs border border-slate-800" rows={3} />
             </div>
           ))}
         </div>
