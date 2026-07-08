@@ -2,11 +2,46 @@ import { useState, useEffect, useRef } from 'react'
 import { createShortsFromLink, getRenderQueue } from '../lib/api'
 import { Short } from '../types'
 import toast from 'react-hot-toast'
-import { 
-  Loader2, Sparkles, Youtube, Clock, CheckCircle2, AlertCircle, 
-  Download, Play, Mic, Sliders, Languages, Zap, UserCheck, Flame 
-} from 'lucide-react'
+import { Loader2, Sparkles, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+
+// Added a helper component for precise video clipping
+const VideoClipper = ({ videoId, startTime, endTime }: { videoId: string, startTime: number, endTime: number }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const onLoadedMetadata = () => {
+      video.currentTime = startTime;
+      video.play();
+    };
+
+    const onTimeUpdate = () => {
+      if (video.currentTime >= endTime) {
+        video.pause();
+        video.currentTime = startTime;
+      }
+    };
+
+    video.addEventListener('loadedmetadata', onLoadedMetadata);
+    video.addEventListener('timeupdate', onTimeUpdate);
+    return () => {
+      video.removeEventListener('loadedmetadata', onLoadedMetadata);
+      video.removeEventListener('timeupdate', onTimeUpdate);
+    };
+  }, [startTime, endTime]);
+
+  return (
+    <video
+      ref={videoRef}
+      src={`https://www.youtube.com/watch?v=${videoId}`}
+      controls
+      className="w-full h-60"
+    />
+  );
+};
 
 export default function GeneratePage() {
   const [url, setUrl] = useState('')
@@ -15,7 +50,6 @@ export default function GeneratePage() {
   const [renderQueue, setRenderQueue] = useState<Short[]>([])
   const renderedIds = useRef(new Set<string>())
 
-  // Customization States
   const [language, setLanguage] = useState('telugu')
   const [voiceTone, setVoiceTone] = useState('energetic')
   const [scriptStyle, setScriptStyle] = useState('hook_controversial')
@@ -70,12 +104,6 @@ export default function GeneratePage() {
       toast.success('Rendering started!', {id: 'gen'})
       setShorts(result)
       setUrl('')
-      result.forEach((short, i) => {
-        if(!renderedIds.current.has(short.id)) {
-          renderedIds.current.add(short.id)
-          setTimeout(() => triggerRender(short), i * 1500)
-        }
-      })
     } catch (e: any) {
       toast.error(e.message, {id: 'gen'})
     }
@@ -98,19 +126,17 @@ export default function GeneratePage() {
       <div className="max-w-6xl mx-auto space-y-8">
         <h1 className="text-4xl font-extrabold flex items-center gap-3">Viral Shorts Generator <Sparkles className="text-amber-400" /></h1>
         
-        {/* CONFIGURATION PANEL */}
         <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6">
            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <select value={language} onChange={e => setLanguage(e.target.value)} className="bg-slate-950 p-3 rounded-xl border border-slate-700 text-sm"><option value="telugu">Telugu</option><option value="english">English</option><option value="hindi">Hindi</option></select>
+              <select value={language} onChange={e => setLanguage(e.target.value)} className="bg-slate-950 p-3 rounded-xl border border-slate-700 text-sm"><option value="telugu">Telugu</option><option value="english">English</option></select>
               <select value={voiceTone} onChange={e => setVoiceTone(e.target.value)} className="bg-slate-950 p-3 rounded-xl border border-slate-700 text-sm"><option value="energetic">Energetic</option><option value="dramatic">Dramatic</option></select>
-              <select value={scriptStyle} onChange={e => setScriptStyle(e.target.value)} className="bg-slate-950 p-3 rounded-xl border border-slate-700 text-sm"><option value="hook_controversial">Controversial Hook</option><option value="storytelling">Storytelling</option></select>
-              <select value={targetAudience} onChange={e => setTargetAudience(e.target.value)} className="bg-slate-950 p-3 rounded-xl border border-slate-700 text-sm"><option value="gen_z">Gen-Z</option><option value="techies">Techies</option></select>
+              <select value={scriptStyle} onChange={e => setScriptStyle(e.target.value)} className="bg-slate-950 p-3 rounded-xl border border-slate-700 text-sm"><option value="hook_controversial">Controversial Hook</option></select>
+              <select value={targetAudience} onChange={e => setTargetAudience(e.target.value)} className="bg-slate-950 p-3 rounded-xl border border-slate-700 text-sm"><option value="gen_z">Gen-Z</option></select>
            </div>
            <input value={url} onChange={e => setUrl(e.target.value)} placeholder="Paste YouTube link here..." className="w-full bg-slate-950 p-4 rounded-xl mb-4 border border-slate-700" />
            <button onClick={handleGenerate} disabled={loading} className="w-full bg-red-600 py-4 rounded-xl font-bold hover:bg-red-500 transition-all">Launch War Mode</button>
         </div>
 
-        {/* SHORTS GRID */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {allShorts.map((short: any) => (
             <div key={short.id} className="bg-slate-900/40 p-5 rounded-2xl border border-slate-800">
@@ -120,10 +146,14 @@ export default function GeneratePage() {
               </div>
 
               <div className="rounded-xl overflow-hidden bg-black mb-4">
-                {short.video_url?.includes('http') ? (
-                   <video src={short.video_url} controls className="w-full h-60" />
+                {short.status === 'ready' && short.video_url ? (
+                  <VideoClipper 
+                    videoId={short.video_url} 
+                    startTime={short.start_time || 0} 
+                    endTime={short.end_time || 30} 
+                  />
                 ) : (
-                   <div className="h-60 flex items-center justify-center text-slate-600">Video will appear here when ready...</div>
+                  <div className="h-60 flex items-center justify-center text-slate-600">Video will appear here when ready...</div>
                 )}
               </div>
 
@@ -134,7 +164,7 @@ export default function GeneratePage() {
                 </div>
               )}
 
-              <textarea defaultValue={short.script || "Generating script..."} className="w-full bg-slate-950 p-3 rounded-lg text-xs border border-slate-800" rows={3} />
+              <textarea defaultValue={short.script || "Generating..."} className="w-full bg-slate-950 p-3 rounded-lg text-xs border border-slate-800" rows={3} />
             </div>
           ))}
         </div>
