@@ -2,46 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { createShortsFromLink, getRenderQueue } from '../lib/api'
 import { Short } from '../types'
 import toast from 'react-hot-toast'
-import { Loader2, Sparkles, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Loader2, Sparkles, Clock, CheckCircle2, AlertCircle, Download } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-
-// Added a helper component for precise video clipping
-const VideoClipper = ({ videoId, startTime, endTime }: { videoId: string, startTime: number, endTime: number }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const onLoadedMetadata = () => {
-      video.currentTime = startTime;
-      video.play();
-    };
-
-    const onTimeUpdate = () => {
-      if (video.currentTime >= endTime) {
-        video.pause();
-        video.currentTime = startTime;
-      }
-    };
-
-    video.addEventListener('loadedmetadata', onLoadedMetadata);
-    video.addEventListener('timeupdate', onTimeUpdate);
-    return () => {
-      video.removeEventListener('loadedmetadata', onLoadedMetadata);
-      video.removeEventListener('timeupdate', onTimeUpdate);
-    };
-  }, [startTime, endTime]);
-
-  return (
-    <video
-      ref={videoRef}
-      src={`https://www.youtube.com/watch?v=${videoId}`}
-      controls
-      className="w-full h-60"
-    />
-  );
-};
 
 export default function GeneratePage() {
   const [url, setUrl] = useState('')
@@ -65,7 +27,7 @@ export default function GeneratePage() {
     try { 
       const queue = await getRenderQueue()
       setRenderQueue(queue || []) 
-      queue?.forEach((short) => {
+      queue?.forEach((short: Short) => {
         if(short.status === 'pending' && !renderedIds.current.has(short.id)) {
           renderedIds.current.add(short.id)
           triggerRender(short)
@@ -141,30 +103,30 @@ export default function GeneratePage() {
           {allShorts.map((short: any) => (
             <div key={short.id} className="bg-slate-900/40 p-5 rounded-2xl border border-slate-800">
               <div className="flex justify-between mb-4">
-                <h3 className="font-bold truncate">{short.title}</h3>
+                <h3 className="font-bold truncate">{short.title || "Viral Clip"}</h3>
                 {getStatusBadge(short.status)}
               </div>
 
+              {/* Cloudinary Transformation Player - No crash, fully cut video */}
               <div className="rounded-xl overflow-hidden bg-black mb-4">
                 {short.status === 'ready' && short.video_url ? (
-                  <VideoClipper 
-                    videoId={short.video_url} 
-                    startTime={short.start_time || 0} 
-                    endTime={short.end_time || 30} 
+                  <video 
+                    src={short.video_url} 
+                    controls 
+                    className="w-full h-60 object-cover" 
                   />
                 ) : (
-                  <div className="h-60 flex items-center justify-center text-slate-600">Video will appear here when ready...</div>
+                  <div className="h-60 flex items-center justify-center text-slate-600">
+                     {short.status === 'generating' ? 'AI is cutting your video...' : 'Video will appear here...'}
+                  </div>
                 )}
               </div>
 
-              {short.hook_context?.includes('AUDIO_URL:') && (
-                <div className="mb-4 bg-slate-950 p-3 rounded-xl border border-emerald-900">
-                  <p className="text-[10px] text-emerald-400 uppercase font-bold mb-1">🎙️ AI Dubbed Audio</p>
-                  <audio controls src={short.hook_context.split('AUDIO_URL:')[1]} className="w-full h-8" />
-                </div>
+              {short.status === 'ready' && (
+                <a href={short.video_url} download className="w-full bg-blue-600 p-2 text-center rounded-lg flex items-center justify-center gap-2 text-xs font-bold hover:bg-blue-500 transition-all">
+                  <Download className="w-4 h-4"/> Download Full Video
+                </a>
               )}
-
-              <textarea defaultValue={short.script || "Generating..."} className="w-full bg-slate-950 p-3 rounded-lg text-xs border border-slate-800" rows={3} />
             </div>
           ))}
         </div>
