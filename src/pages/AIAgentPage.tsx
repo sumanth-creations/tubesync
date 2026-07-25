@@ -166,9 +166,6 @@ User Channel Data:
     loadQueueCount();
   }, [queueCount, uploadSettings]);
 
-  // ==========================================
-  // BRAIN TRAINING LOGGERS (Background DB saving)
-  // ==========================================
   const logAiGeneration = async (topic: string, prompt: string, response: string, title?: string) => {
     try {
       await supabase.from('ai_training_generations').insert({
@@ -197,9 +194,6 @@ User Channel Data:
     }
   };
 
-  // ==========================================
-  // AI TOOLS (WITH GOOGLE SEARCH ENABLED)
-  // ==========================================
   const tools = [
     {
       function_declarations: [
@@ -283,9 +277,6 @@ User Channel Data:
       const settings = await getUserSettings();
       if (!settings?.gemini_api_key) throw new Error("API Key ledhu! Settings lo add cheyyi.");
 
-      // ==========================================
-      // THE AUTONOMOUS GOD-MODE PROMPT
-      // ==========================================
       const aiPersonaContext = `
       You are TubeSync AI Mastermind - an Autonomous YouTube Algorithm & Growth Engineer.
       
@@ -324,7 +315,6 @@ User Channel Data:
       if (part?.functionCall) {
         const { name, args } = part.functionCall;
         
-        // LOGGING TOOL EXECUTION TO OUR TRAINING DB
         await logAiToolSearch(name, JSON.stringify(args || {}), "Executing Tool Call / Google Search");
 
         setMessages(prev => [...prev, { id: 'func-' + Date.now(), role: 'function', content: `Analyzing YT Global Data via ${name}...`, timestamp: new Date(), functionName: name }]);
@@ -347,7 +337,6 @@ User Channel Data:
         const finalData = await finalResponse.json();
         const aiText = finalData.candidates?.[0]?.content?.parts?.[0]?.text || result;
 
-        // LOGGING GENERATION TO OUR TRAINING DB
         await logAiGeneration(args.topic || 'YT Global Trend Search', currentInput, aiText, args.title || '');
 
         setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: aiText, timestamp: new Date() }]);
@@ -355,7 +344,6 @@ User Channel Data:
         const aiText = part?.text;
         if (!aiText) throw new Error("AI nunchi response raledhu");
 
-        // LOGGING GENERATION TO OUR TRAINING DB
         await logAiGeneration('General Strategy', currentInput, aiText);
 
         setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: aiText, timestamp: new Date() }]);
