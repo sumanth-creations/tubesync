@@ -245,7 +245,6 @@ User Channel Data:
         }
       ]
     },
-    // BRO IDHI CHUDU: Live internet access kosam googleSearch tool
     {
       googleSearch: {} 
     }
@@ -369,6 +368,155 @@ User Channel Data:
     }
   };
 
-  // UI Code starts here (Skipped rendering the exact same UI block to save space, keep your original return statement)
   return (
-    // ... [KEEP YOUR EXACT ORIGINAL RETURN STATEMENT HERE WITH THE DIVS AND LUCIDE ICONS] ...
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950/10 to-slate-950 text-white flex flex-col">
+      <div className="border-b border-slate-800/50 backdrop-blur-xl bg-slate-950/50 sticky top-0 z-50">
+        <div className="max-w-5xl mx-auto px-6 py-5">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
+              <Bot className="w-6 h-6" />
+            </div>
+            <div className="flex-1">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
+                TubeSync Command Center
+              </h1>
+              <p className="text-slate-500 text-sm">Auto Upload + Viral AI + YT Algorithm Analysis</p>
+
+              <div className="flex items-center gap-3 mt-3 flex-wrap">
+                <label className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 cursor-pointer flex items-center gap-2 text-sm font-medium transition-colors">
+                  <Folder className="w-4 h-4" />
+                  {uploading ? 'Uploading...' : 'Upload Folder'}
+                  <input
+                    type="file"
+                    multiple
+                    accept="video/*"
+                    onChange={handleFolderUpload}
+                    className="hidden"
+                    disabled={uploading}
+                    {...{ webkitdirectory: "", directory: "" } as any}
+                  />
+                </label>
+
+                <button
+                  onClick={() => setShowSettings(!showSettings)}
+                  className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 cursor-pointer flex items-center gap-2 text-sm font-medium transition-colors"
+                >
+                  <Settings className="w-4 h-4" />
+                  Settings
+                </button>
+
+                <div className="px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700/50 text-sm flex items-center gap-2">
+                  <ListVideo className="w-4 h-4 text-purple-400" />
+                  Queue: <span className="text-purple-400 font-bold">{queueCount}</span>
+                </div>
+
+                <div className="px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700/50 text-sm flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-emerald-400" />
+                  Auto: <span className="text-emerald-400 font-bold">Daily 1</span>
+                </div>
+              </div>
+
+              {showSettings && (
+                <div className="mt-4 p-4 rounded-lg bg-slate-800/50 border border-slate-700/50 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-slate-400 w-24">Privacy:</span>
+                    <select 
+                      value={uploadSettings.privacy}
+                      onChange={(e) => setUploadSettings({...uploadSettings, privacy: e.target.value as any})}
+                      className="bg-slate-700 border border-slate-600 rounded px-3 py-1.5 text-sm"
+                    >
+                      <option value="public">Public</option>
+                      <option value="unlisted">Unlisted</option>
+                      <option value="private">Private</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-slate-400 w-24">Made for Kids:</span>
+                    <button
+                      onClick={() => setUploadSettings({...uploadSettings, madeForKids: !uploadSettings.madeForKids})}
+                      className={`px-3 py-1.5 rounded flex items-center gap-2 text-sm ${uploadSettings.madeForKids ? 'bg-green-600' : 'bg-slate-700'}`}
+                    >
+                      <Baby className="w-4 h-4" />
+                      {uploadSettings.madeForKids ? 'Yes' : 'No'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="ml-auto">
+              <div className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium">
+                ● Online
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 py-8 max-w-5xl w-full mx-auto">
+        <div className="space-y-6">
+          {messages.map((m) => (
+            <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[80%] ${m.role === 'user' ? 'order-2' : 'order-1'}`}>
+                <div className={`flex items-start gap-3 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    m.role === 'user'
+                      ? 'bg-gradient-to-br from-blue-600 to-cyan-600'
+                      : m.role === 'function'
+                      ? 'bg-gradient-to-br from-amber-600 to-orange-600'
+                      : 'bg-gradient-to-br from-purple-600 to-pink-600'
+                  }`}>
+                    {m.role === 'user' ? '👤' : m.role === 'function' ? <Zap className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+                  </div>
+                  <div>
+                    <div className={`rounded-2xl px-5 py-3 ${
+                      m.role === 'user'
+                        ? 'bg-gradient-to-br from-blue-600 to-cyan-600 text-white'
+                        : m.role === 'function'
+                        ? 'bg-amber-900/30 border border-amber-700/50 text-amber-200'
+                        : 'bg-slate-800/50 border border-slate-700/50 text-slate-100'
+                    }`}>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.content}</p>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1.5 px-1">
+                      {m.timestamp.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div className="flex justify-start">
+              <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl px-5 py-3">
+                <Loader2 className="w-5 h-5 animate-spin text-purple-400" />
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+      </div>
+
+      <div className="border-t border-slate-800/50 backdrop-blur-xl bg-slate-950/50 p-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex gap-3">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+              placeholder="Command: 'queue status' 'best upload time' 'channel analysis' 'generate viral content'..."
+              className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-xl px-5 py-3.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 transition-all"
+              disabled={loading}
+            />
+            <button
+              onClick={handleSend}
+              disabled={loading || !input.trim()}
+              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3.5 rounded-xl font-semibold transition-all shadow-lg shadow-purple-500/30 flex items-center gap-2"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
