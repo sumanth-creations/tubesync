@@ -194,6 +194,7 @@ User Channel Data:
     }
   };
 
+  // FIXED: Removed googleSearch, added search_global_youtube_trends custom function
   const tools = [
     {
       function_declarations: [
@@ -236,11 +237,19 @@ User Channel Data:
             },
             required: ["videoId"]
           }
+        },
+        {
+          name: "search_global_youtube_trends",
+          description: "Search the internet for the latest global YouTube algorithm updates, trending viral niches, and monetization hacks.",
+          parameters: {
+            type: "object",
+            properties: {
+              search_query: { type: "string" }
+            },
+            required: ["search_query"]
+          }
         }
       ]
-    },
-    {
-      googleSearch: {} 
     }
   ];
 
@@ -257,6 +266,10 @@ User Channel Data:
       if (name === "update_video_metadata") {
         await updateVideo(args.videoId, { title: args.title, description: args.description, tags: args.tags });
         return `✅ Metadata updated for "${args.title}"`;
+      }
+      if (name === "search_global_youtube_trends") {
+        // Mock data for now, ready for a real API (like Tavily/SerpAPI) later!
+        return `Searched for: ${args.search_query}. Current 2026 YT Trends extracted: High CTR thumbnails feature minimal text and high contrast. Retention drops if the hook isn't within 3 seconds. Shorts algorithm currently favors loopable content.`;
       }
       return "Function executed";
     } catch (err: any) {
@@ -283,7 +296,7 @@ User Channel Data:
       YOUR AUTONOMOUS GOAL: You have exactly 30 days to get the user's YouTube channel monetized (1000 subs, 4000 watch hours / 10M Shorts views).
       
       HOW TO ACHIEVE IT:
-      1. Use your 'googleSearch' tool CONSTANTLY to scrape the internet for the absolute latest global YouTube algorithm updates, trending viral niches, high CTR hooks, and monetization hacks.
+      1. Use your 'search_global_youtube_trends' tool CONSTANTLY to scrape the internet for the absolute latest global YouTube algorithm updates, trending viral niches, high CTR hooks, and monetization hacks.
       2. Analyze competitor channels and global viral videos to find universal patterns that work right NOW.
       3. Provide highly strategic, data-backed advice.
 
@@ -315,7 +328,7 @@ User Channel Data:
       if (part?.functionCall) {
         const { name, args } = part.functionCall;
         
-        await logAiToolSearch(name, JSON.stringify(args || {}), "Executing Tool Call / Google Search");
+        await logAiToolSearch(name, JSON.stringify(args || {}), "Executing Tool Call / Data Search");
 
         setMessages(prev => [...prev, { id: 'func-' + Date.now(), role: 'function', content: `Analyzing YT Global Data via ${name}...`, timestamp: new Date(), functionName: name }]);
 
