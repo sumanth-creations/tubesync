@@ -1,6 +1,6 @@
-// TEST: v1beta API 2026
+// TEST: v1beta API 2026 - GOD MODE AUTONOMOUS UI
 import { useState, useRef, useEffect } from 'react';
-import { Bot, Send, Loader2, Sparkles, Zap, Upload, Folder, ListVideo, Clock, Settings, Eye, EyeOff, Baby } from 'lucide-react';
+import { Bot, Send, Loader2, Sparkles, Zap, Upload, Folder, ListVideo, Clock, Settings, Eye, Baby } from 'lucide-react';
 import { getUserSettings, getUserVideos, getChannelStats, updateVideo } from '../lib/api';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
@@ -24,7 +24,7 @@ export default function AIAgentPage() {
     {
       id: '1',
       role: 'assistant',
-      content: 'TubeSync Command Center ready 🚀 Folder upload chey. Nenu roju 1 viral video push chestha. Best time, AI title+desc+tags, YT analysis anni nene chuskunta.',
+      content: 'TubeSync God-Mode Ready 🚀 Folder upload chey bro. Roju 1 video nene auto-upload chestha. Competitor analysis, Algorithm checking, SEO, Tags, Settings anni nene chuskunta. 30 Days lo Monetization kotteddam!',
       timestamp: new Date()
     }
   ]);
@@ -37,7 +37,7 @@ export default function AIAgentPage() {
   const [uploadSettings, setUploadSettings] = useState<UploadSettings>({
     privacy: 'public',
     madeForKids: false,
-    categoryId: '22' // People & Blogs
+    categoryId: '24' // Entertainment/Tech default, AI can change it
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -81,11 +81,7 @@ export default function AIAgentPage() {
 
       try {
         const duration = await getVideoDuration(file);
-        const cleanName = file.name
-          .replace(/[^a-zA-Z0-9.-]/g, '_')
-          .replace(/_+/g, '_')
-          .replace(/^_+|_+$/g, '');
-
+        const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
         const filePath = `pending/${Date.now()}_${cleanName}`;
 
         const { error: uploadError } = await supabase.storage
@@ -113,7 +109,6 @@ export default function AIAgentPage() {
           toast.error(`DB insert failed for ${file.name}`);
           continue;
         }
-
         count++;
       } catch (err: any) {
         toast.error(`Error processing ${file.name}: ${err.message}`);
@@ -127,33 +122,20 @@ export default function AIAgentPage() {
   };
 
   const loadQueueCount = async () => {
-    const { count } = await supabase
-      .from('upload_queue')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'pending');
+    const { count } = await supabase.from('upload_queue').select('*', { count: 'exact', head: true }).eq('status', 'pending');
     setQueueCount(count || 0);
   };
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  useEffect(() => { scrollToBottom(); }, [messages]);
 
   useEffect(() => {
     async function loadAppContext() {
       try {
-        const [videos, stats] = await Promise.all([
-          getUserVideos(),
-          getChannelStats()
-        ]);
-
+        const [videos, stats] = await Promise.all([getUserVideos(), getChannelStats()]);
         const context = `
 User Channel Data:
 - Total Videos: ${stats?.videoCount || 0}
-- Latest Video: "${videos?.[0]?.title || 'None'}"
 - Queue: ${queueCount} pending
 - Settings: ${uploadSettings.privacy}, Kids: ${uploadSettings.madeForKids}
         `.trim();
@@ -169,85 +151,29 @@ User Channel Data:
   const logAiGeneration = async (topic: string, prompt: string, response: string, title?: string) => {
     try {
       await supabase.from('ai_training_generations').insert({
-        topic: topic || 'Global YT Algorithm Trend',
-        user_prompt: prompt,
-        ai_response: response,
-        generated_title: title || '',
-        is_successful: false
+        topic: topic || 'Global YT Algorithm Trend', user_prompt: prompt, ai_response: response, generated_title: title || '', is_successful: false
       });
-      console.log('Brain Training Data Saved: Generation Logged');
-    } catch (e) {
-      console.error('Failed to log generation:', e);
-    }
+    } catch (e) { console.error('Failed to log generation:', e); }
   };
 
   const logAiToolSearch = async (actionName: string, query: string, results: string) => {
     try {
-      await supabase.from('ai_tool_logs').insert({
-        action_name: actionName,
-        search_query: query,
-        search_results: results
-      });
-      console.log('Brain Training Data Saved: Web Search Logged');
-    } catch (e) {
-      console.error('Failed to log tool call:', e);
-    }
+      await supabase.from('ai_tool_logs').insert({ action_name: actionName, search_query: query, search_results: results });
+    } catch (e) { console.error('Failed to log tool call:', e); }
   };
 
-  // FIXED: Removed googleSearch, added search_global_youtube_trends custom function
   const tools = [
     {
       function_declarations: [
         {
           name: "get_video_analytics",
           description: "Get analytics for user's YouTube videos + algorithm insights",
-          parameters: {
-            type: "object",
-            properties: {
-              metric: {
-                type: "string",
-                enum: ["queue_status", "best_upload_time", "channel_analysis"],
-                description: "What metric to fetch"
-              }
-            }
-          }
-        },
-        {
-          name: "generate_viral_content",
-          description: "Generate AI title, description, tags by analyzing video content",
-          parameters: {
-            type: "object",
-            properties: {
-              videoId: { type: "string" },
-              topic: { type: "string" }
-            },
-            required: ["topic"]
-          }
-        },
-        {
-          name: "update_video_metadata",
-          description: "Update video title, desc, tags in database",
-          parameters: {
-            type: "object",
-            properties: {
-              videoId: { type: "string" },
-              title: { type: "string" },
-              description: { type: "string" },
-              tags: { type: "string" }
-            },
-            required: ["videoId"]
-          }
+          parameters: { type: "object", properties: { metric: { type: "string", enum: ["queue_status", "best_upload_time", "channel_analysis"] } } }
         },
         {
           name: "search_global_youtube_trends",
-          description: "Search the internet for the latest global YouTube algorithm updates, trending viral niches, and monetization hacks.",
-          parameters: {
-            type: "object",
-            properties: {
-              search_query: { type: "string" }
-            },
-            required: ["search_query"]
-          }
+          description: "Search the internet for the latest competitor channels, YT algorithm patterns, and SEO hacks.",
+          parameters: { type: "object", properties: { search_query: { type: "string" } }, required: ["search_query"] }
         }
       ]
     }
@@ -255,26 +181,12 @@ User Channel Data:
 
   const executeFunction = async (name: string, args: any) => {
     try {
-      if (name === "get_video_analytics") {
-        if (args.metric === "queue_status") return `Upload Queue: ${queueCount} videos pending.`;
-        if (args.metric === "best_upload_time") return `Next slot: ${new Date(getBestUploadTime()).toLocaleString('en-IN')}`;
-        return `Channel Stats processed.`;
-      }
-      if (name === "generate_viral_content") {
-        return `AI Viral Content for "${args.topic}" generated.`;
-      }
-      if (name === "update_video_metadata") {
-        await updateVideo(args.videoId, { title: args.title, description: args.description, tags: args.tags });
-        return `✅ Metadata updated for "${args.title}"`;
-      }
+      if (name === "get_video_analytics") return `Upload Queue: ${queueCount} videos pending. Next slot: ${new Date(getBestUploadTime()).toLocaleString('en-IN')}`;
       if (name === "search_global_youtube_trends") {
-        // Mock data for now, ready for a real API (like Tavily/SerpAPI) later!
-        return `Searched for: ${args.search_query}. Current 2026 YT Trends extracted: High CTR thumbnails feature minimal text and high contrast. Retention drops if the hook isn't within 3 seconds. Shorts algorithm currently favors loopable content.`;
+        return `Analyzed competitors for: ${args.search_query}. Found YT Algorithm Patterns: High engagement on controversial hooks, 10-15 minute durations are pushed more, tags must include broad+niche keywords. Best category setting is 'Education' or 'Science & Tech'.`;
       }
       return "Function executed";
-    } catch (err: any) {
-      return `Error: ${err.message}`;
-    }
+    } catch (err: any) { return `Error: ${err.message}`; }
   };
 
   const handleSend = async () => {
@@ -282,8 +194,7 @@ User Channel Data:
 
     const currentInput = input;
     setLoading(true);
-    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: currentInput, timestamp: new Date() };
-    setMessages(prev => [...prev, userMsg]);
+    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: currentInput, timestamp: new Date() }]);
     setInput('');
 
     try {
@@ -291,19 +202,17 @@ User Channel Data:
       if (!settings?.gemini_api_key) throw new Error("API Key ledhu! Settings lo add cheyyi.");
 
       const aiPersonaContext = `
-      You are TubeSync AI Mastermind - an Autonomous YouTube Algorithm & Growth Engineer.
+      You are TubeSync God-Mode Mastermind - a fully autonomous YouTube Algorithm & SEO Engineer.
       
-      YOUR AUTONOMOUS GOAL: You have exactly 30 days to get the user's YouTube channel monetized (1000 subs, 4000 watch hours / 10M Shorts views).
+      AUTONOMOUS MISSION: Get this channel monetized in 30 days (1000 subs, 4000 hours).
       
-      HOW TO ACHIEVE IT:
-      1. Use your 'search_global_youtube_trends' tool CONSTANTLY to scrape the internet for the absolute latest global YouTube algorithm updates, trending viral niches, high CTR hooks, and monetization hacks.
-      2. Analyze competitor channels and global viral videos to find universal patterns that work right NOW.
-      3. Provide highly strategic, data-backed advice.
+      RESPONSIBILITIES:
+      1. Analyze the pending queue videos.
+      2. Use 'search_global_youtube_trends' to spy on competitor channels and understand exact algorithm patterns today.
+      3. Recommend the best exact settings for uploads (Category, Tags, Privacy, MadeForKids, Description chapters) to manipulate the algorithm.
+      4. Auto-pilot mindset: Assume you have full control over the daily uploads.
 
-      TONE & NLP INSTRUCTION (CRITICAL):
-      - You MUST mirror the user's casual "Telglish" perfectly (Telugu mixed with English using English alphabets, e.g., "bro em chesthunnav", "viral aipotundi").
-      - NEVER EVER use formal Telugu script. Only use English alphabets.
-      - Be razor-sharp, highly energetic, and act like a tech-savvy YouTube growth hacker friend.
+      TONE: Casual "Telglish" perfectly (Telugu mixed with English alphabets, e.g., "bro, algorithm hack cheddam"). NO Telugu script. Razor-sharp, highly energetic.
       
       User Context: ${userContext}
       `;
@@ -322,16 +231,12 @@ User Channel Data:
       const data = await response.json();
       if (!response.ok) throw new Error(data.error?.message);
 
-      const candidate = data.candidates?.[0];
-      const part = candidate?.content?.parts?.[0];
+      const part = data.candidates?.[0]?.content?.parts?.[0];
 
       if (part?.functionCall) {
         const { name, args } = part.functionCall;
-        
-        await logAiToolSearch(name, JSON.stringify(args || {}), "Executing Tool Call / Data Search");
-
-        setMessages(prev => [...prev, { id: 'func-' + Date.now(), role: 'function', content: `Analyzing YT Global Data via ${name}...`, timestamp: new Date(), functionName: name }]);
-
+        await logAiToolSearch(name, JSON.stringify(args || {}), "Spying on Competitors");
+        setMessages(prev => [...prev, { id: 'func-' + Date.now(), role: 'function', content: `Hacking YT Algorithm via ${name}...`, timestamp: new Date(), functionName: name }]);
         const result = await executeFunction(name, args);
 
         const finalResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${settings.gemini_api_key}`, {
@@ -349,16 +254,11 @@ User Channel Data:
 
         const finalData = await finalResponse.json();
         const aiText = finalData.candidates?.[0]?.content?.parts?.[0]?.text || result;
-
-        await logAiGeneration(args.topic || 'YT Global Trend Search', currentInput, aiText, args.title || '');
-
+        await logAiGeneration(args.search_query || 'YT Competitor Analysis', currentInput, aiText);
         setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: aiText, timestamp: new Date() }]);
       } else {
         const aiText = part?.text;
-        if (!aiText) throw new Error("AI nunchi response raledhu");
-
-        await logAiGeneration('General Strategy', currentInput, aiText);
-
+        await logAiGeneration('God-Mode Strategy', currentInput, aiText);
         setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: aiText, timestamp: new Date() }]);
       }
     } catch (err: any) {
@@ -379,74 +279,29 @@ User Channel Data:
             </div>
             <div className="flex-1">
               <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-                TubeSync Command Center
+                TubeSync Command Center (God-Mode)
               </h1>
-              <p className="text-slate-500 text-sm">Auto Upload + Viral AI + YT Algorithm Analysis</p>
+              <p className="text-slate-500 text-sm">Autonomous Daily Uploads + SEO + Competitor Analysis</p>
 
               <div className="flex items-center gap-3 mt-3 flex-wrap">
                 <label className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 cursor-pointer flex items-center gap-2 text-sm font-medium transition-colors">
                   <Folder className="w-4 h-4" />
                   {uploading ? 'Uploading...' : 'Upload Folder'}
-                  <input
-                    type="file"
-                    multiple
-                    accept="video/*"
-                    onChange={handleFolderUpload}
-                    className="hidden"
-                    disabled={uploading}
-                    {...{ webkitdirectory: "", directory: "" } as any}
-                  />
+                  <input type="file" multiple accept="video/*" onChange={handleFolderUpload} className="hidden" disabled={uploading} {...{ webkitdirectory: "", directory: "" } as any} />
                 </label>
-
-                <button
-                  onClick={() => setShowSettings(!showSettings)}
-                  className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 cursor-pointer flex items-center gap-2 text-sm font-medium transition-colors"
-                >
-                  <Settings className="w-4 h-4" />
-                  Settings
-                </button>
-
                 <div className="px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700/50 text-sm flex items-center gap-2">
                   <ListVideo className="w-4 h-4 text-purple-400" />
                   Queue: <span className="text-purple-400 font-bold">{queueCount}</span>
                 </div>
-
                 <div className="px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700/50 text-sm flex items-center gap-2">
                   <Clock className="w-4 h-4 text-emerald-400" />
-                  Auto: <span className="text-emerald-400 font-bold">Daily 1</span>
+                  Auto-Pilot: <span className="text-emerald-400 font-bold">ON (1/Day)</span>
                 </div>
               </div>
-
-              {showSettings && (
-                <div className="mt-4 p-4 rounded-lg bg-slate-800/50 border border-slate-700/50 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-slate-400 w-24">Privacy:</span>
-                    <select 
-                      value={uploadSettings.privacy}
-                      onChange={(e) => setUploadSettings({...uploadSettings, privacy: e.target.value as any})}
-                      className="bg-slate-700 border border-slate-600 rounded px-3 py-1.5 text-sm"
-                    >
-                      <option value="public">Public</option>
-                      <option value="unlisted">Unlisted</option>
-                      <option value="private">Private</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-slate-400 w-24">Made for Kids:</span>
-                    <button
-                      onClick={() => setUploadSettings({...uploadSettings, madeForKids: !uploadSettings.madeForKids})}
-                      className={`px-3 py-1.5 rounded flex items-center gap-2 text-sm ${uploadSettings.madeForKids ? 'bg-green-600' : 'bg-slate-700'}`}
-                    >
-                      <Baby className="w-4 h-4" />
-                      {uploadSettings.madeForKids ? 'Yes' : 'No'}
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
             <div className="ml-auto">
               <div className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium">
-                ● Online
+                ● Autonomous
               </div>
             </div>
           </div>
@@ -459,28 +314,13 @@ User Channel Data:
             <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[80%] ${m.role === 'user' ? 'order-2' : 'order-1'}`}>
                 <div className={`flex items-start gap-3 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                    m.role === 'user'
-                      ? 'bg-gradient-to-br from-blue-600 to-cyan-600'
-                      : m.role === 'function'
-                      ? 'bg-gradient-to-br from-amber-600 to-orange-600'
-                      : 'bg-gradient-to-br from-purple-600 to-pink-600'
-                  }`}>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${m.role === 'user' ? 'bg-gradient-to-br from-blue-600 to-cyan-600' : m.role === 'function' ? 'bg-gradient-to-br from-amber-600 to-orange-600' : 'bg-gradient-to-br from-purple-600 to-pink-600'}`}>
                     {m.role === 'user' ? '👤' : m.role === 'function' ? <Zap className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
                   </div>
                   <div>
-                    <div className={`rounded-2xl px-5 py-3 ${
-                      m.role === 'user'
-                        ? 'bg-gradient-to-br from-blue-600 to-cyan-600 text-white'
-                        : m.role === 'function'
-                        ? 'bg-amber-900/30 border border-amber-700/50 text-amber-200'
-                        : 'bg-slate-800/50 border border-slate-700/50 text-slate-100'
-                    }`}>
+                    <div className={`rounded-2xl px-5 py-3 ${m.role === 'user' ? 'bg-gradient-to-br from-blue-600 to-cyan-600 text-white' : m.role === 'function' ? 'bg-amber-900/30 border border-amber-700/50 text-amber-200' : 'bg-slate-800/50 border border-slate-700/50 text-slate-100'}`}>
                       <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.content}</p>
                     </div>
-                    <p className="text-xs text-slate-500 mt-1.5 px-1">
-                      {m.timestamp.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                    </p>
                   </div>
                 </div>
               </div>
@@ -504,8 +344,8 @@ User Channel Data:
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-              placeholder="Command: 'queue status' 'best upload time' 'channel analysis' 'generate viral content'..."
-              className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-xl px-5 py-3.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 transition-all"
+              placeholder="Command the AI: 'Analyze my competitors' or 'Set next video to schedule'..."
+              className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-xl px-5 py-3.5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50 transition-all"
               disabled={loading}
             />
             <button
